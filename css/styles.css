@@ -262,26 +262,36 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   font-weight: 600;
   font-size: 1.02rem;
   color: var(--brass-dark);
-  flex: 1; /* pushes the pin button and "+ Book" to the right edge */
+  flex: 1; /* pushes the pin button and "+ Corpus" to the right edge */
 }
 
+/* Pin toggle — double chevron rather than a pushpin glyph, to stay in
+   the parchment/ink/brass register rather than a flat modern icon font.
+   Unpinned: dark brown, pointing right (»), reading as "this panel could
+   tuck away." Pinned: gold/brass, flipped 180° to point left («), reading
+   as "anchored back into place." Color shift reuses the same brass accent
+   already used for the active-tab underline and active nav rows, so the
+   pinned state visually agrees with the rest of the app's vocabulary for
+   "this is the current/active one." */
 .nav-pin-btn {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: .95rem;
-  padding: .2rem .35rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: .2rem .4rem;
   border-radius: var(--r-sm);
-  color: var(--muted);
-  opacity: .55;
-  transform: rotate(35deg); /* unpinned default reads as "not yet placed" */
-  transition: opacity .15s, transform .15s, color .15s;
+  color: var(--brass-dark);
+  opacity: .6;
+  transform: rotate(0deg);
+  transition: opacity .15s, transform .25s ease, color .15s;
 }
 .nav-pin-btn:hover { background: var(--paper-dark); opacity: .85; }
 .nav-pin-btn.active {
   opacity: 1;
-  color: var(--brass-dark);
-  transform: rotate(0deg); /* pinned reads as "set in place" */
+  color: var(--brass);
+  transform: rotate(180deg);
 }
 
 .nav-tree {
