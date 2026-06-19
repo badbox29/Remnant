@@ -180,16 +180,17 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   background: var(--paper-dark);
 }
 
-@media (max-width: 800px) {
-  .main-layout { flex-direction: column; height: auto; }
-  .scratchpad-column { width: 100%; border-top: 1px solid var(--border); }
-}
-
 /* ── Nav panel (Books > Chapters > Notes + Unfiled) ─────────────────
-   Pops out as an overlay over the layout rather than permanently
-   reflowing it — a notes tool's primary real estate is the page being
-   written, not the table of contents, so the tree borrows space only
-   when it's wanted. */
+   Two layout modes:
+     pop-out (default) — absolute-positioned overlay, slides in over the
+       layout, dismissed by the scrim or the hamburger. Doesn't reflow
+       anything, since a notes tool's primary real estate is the page
+       being written, not the table of contents.
+     pinned — a real flex sibling in .main-layout, claiming permanent
+       width and pushing notes/scratchpad over. Applied via the
+       .nav-pinned class on .main-layout, set by applyNavPanelDOMState()
+       in app.js whenever the user's pinned preference is both true AND
+       the viewport is wide enough (NAV_PIN_MIN_WIDTH) to honor it. */
 
 .nav-panel {
   position: absolute;
@@ -206,19 +207,39 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 .nav-panel.open { transform: translateX(0); }
 
+/* Pinned mode: panel becomes a normal flex item instead of an absolute
+   overlay. flex-shrink: 0 keeps its width fixed even as the notes/
+   scratchpad columns compete for the remaining space. No shadow or
+   z-index needed — it's not floating above anything anymore. */
+.main-layout.nav-pinned .nav-panel {
+  position: relative;
+  flex-shrink: 0;
+  transform: none;
+  box-shadow: none;
+  z-index: auto;
+}
+
 .nav-panel-scrim {
+  /* display is set directly by applyNavPanelDOMState() in app.js, not by
+     a CSS sibling-selector — scrim visibility depends on BOTH "is the
+     panel open" AND "is pinned mode NOT active," which is state CSS
+     alone can't evaluate (pinned-active also depends on viewport width
+     vs. a value defined in JS, not in a media query). Default hidden;
+     JS is the single source of truth from here. */
   display: none;
   position: absolute;
   inset: 0;
-  background: rgba(43,40,35,.18);
+  /* Darkened from the original .18 alpha — pop-out mode should read
+     clearly as "this content is now in the background," not just
+     faintly tinted. */
+  background: rgba(43,40,35,.42);
   z-index: 35;
 }
-.nav-panel.open + .nav-panel-scrim { display: block; }
 
 .nav-panel-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: .4rem;
   padding: .85rem 1rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -228,6 +249,26 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   font-weight: 600;
   font-size: 1.02rem;
   color: var(--brass-dark);
+  flex: 1; /* pushes the pin button and "+ Book" to the right edge */
+}
+
+.nav-pin-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: .95rem;
+  padding: .2rem .35rem;
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  opacity: .55;
+  transform: rotate(35deg); /* unpinned default reads as "not yet placed" */
+  transition: opacity .15s, transform .15s, color .15s;
+}
+.nav-pin-btn:hover { background: var(--paper-dark); opacity: .85; }
+.nav-pin-btn.active {
+  opacity: 1;
+  color: var(--brass-dark);
+  transform: rotate(0deg); /* pinned reads as "set in place" */
 }
 
 .nav-tree {
@@ -601,14 +642,34 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   align-items: center;
   gap: .6rem;
 }
-.auth-google-avatar {
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
+/* ════════════════════════════════════════════════════════════════
+   RESPONSIVE — Galaxy Fold 5 breakpoints
+   Mirrors the scheme already established in the Refectory stylesheet
+   this auth/layout pattern is ported from:
+     860px = fold open / tablet
+     640px = mid-range phones
+     420px = fold closed (~370px outer-screen viewport)
+   The pinned-nav-panel responsive override (isPinnedActive() in app.js)
+   uses NAV_PIN_MIN_WIDTH = 860, kept in sync with the tier below.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── 860px: tablet / fold open ──────────────────────────────────── */
+@media (max-width: 860px) {
+  /* Nav panel — slightly narrower; less width to spare at this tier
+     even when pop-out, and pinned mode is already force-disabled at
+     this width by isPinnedActive() in app.js. */
+  .nav-panel { width: 260px; }
 }
 
-/* ── Responsive ──────────────────────────────────────────────────── */
-
+/* ── 640px: mid phones ──────────────────────────────────────────── */
 @media (max-width: 640px) {
+  .main-layout { flex-direction: column; height: auto; }
+  .scratchpad-column { width: 100%; border-top: 1px solid var(--border); }
   .modal, .modal-sm { max-width: 100%; margin: 0 .75rem; }
+}
+
+/* ── 420px: fold closed / very narrow ────────────────────────────── */
+@media (max-width: 420px) {
+  .nav-panel { width: 88vw; } /* near-full-width on the Fold 5 outer screen */
+  .nav-panel-title { font-size: .92rem; }
 }
