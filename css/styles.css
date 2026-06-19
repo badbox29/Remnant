@@ -122,6 +122,19 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 
 .topbar-actions { display: flex; align-items: center; gap: .6rem; }
 
+.link-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: .82rem;
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  padding: .2rem .1rem;
+  transition: color .15s, text-decoration-color .15s;
+}
+.link-btn:hover { color: var(--brass-dark); text-decoration-color: var(--brass); }
+
 .sync-indicator {
   color: var(--brass);
   font-size: .7rem;
@@ -544,6 +557,40 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 .modal-close:hover { color: var(--ink); }
 
 .modal-body { padding: 1.4rem; }
+
+/* ── Terminology modal ───────────────────────────────────────────── */
+
+.term-entry { margin-bottom: 1rem; }
+.term-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--brass-dark);
+  margin-bottom: .2rem;
+}
+.term-def {
+  font-size: .85rem;
+  line-height: 1.55;
+  color: var(--ink);
+  margin: 0;
+}
+
+.term-hierarchy {
+  margin-top: 1.2rem;
+  padding: .75rem .9rem;
+  background: var(--paper-dark);
+  border-radius: var(--r-md);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: .92rem;
+  color: var(--brass-dark);
+  text-align: center;
+}
+.term-hierarchy-arrow {
+  color: var(--muted);
+  font-weight: 400;
+  margin: 0 .3rem;
+}
 
 /* ── Forms ───────────────────────────────────────────────────────── */
 
