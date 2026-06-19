@@ -275,6 +275,90 @@
   </div>
 </div>
 
+<!-- ════════════════════════════════════════════════════════════
+     Cipher creation modal — set a passphrase, see the no-recovery
+     warning (unless suppressed), confirm to create.
+     ════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-cipher-create" role="dialog" aria-modal="true" aria-labelledby="cipher-create-title">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title" id="cipher-create-title">New Cipher</h2>
+      <button class="modal-close" id="cipher-create-close-btn" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="cipher-create-warning">
+        <p class="f13 lh" style="margin-bottom:.85rem;color:var(--red);font-weight:600;">
+          There is no way to recover a Cipher if you forget its passphrase.
+        </p>
+        <p class="f13 lh muted" style="margin-bottom:1.1rem;">
+          The passphrase is never stored anywhere — not on this device, not
+          in sync, not by Remnant in any form. Store it somewhere secure
+          outside this app (a password manager, written down and kept safe)
+          before you rely on it. The Cipher's title stays visible in your
+          Library; only its contents are protected.
+        </p>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Passphrase</label>
+        <input class="input input-mono" type="password" id="cipher-create-passphrase" placeholder="Enter a passphrase…" autocomplete="new-password" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm Passphrase</label>
+        <input class="input input-mono" type="password" id="cipher-create-passphrase-confirm" placeholder="Re-enter the same passphrase…" autocomplete="new-password" />
+      </div>
+
+      <label class="row gap-8 f13 muted" style="cursor:pointer;margin-bottom:1rem;">
+        <input type="checkbox" id="cipher-create-dont-remind" />
+        Don't show this warning again
+      </label>
+
+      <div id="cipher-create-status" style="min-height:1.3rem;font-size:.82rem;color:var(--red);margin-bottom:.5rem;"></div>
+
+      <div class="form-actions">
+        <button class="btn btn-ghost" id="cipher-create-cancel-btn">Cancel</button>
+        <button class="btn btn-primary" id="cipher-create-confirm-btn">Create Cipher</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     Cipher unlock modal — enter the passphrase to view/edit. The
+     optional checkbox caches the derived KEY (never the passphrase
+     itself) in memory for the rest of this browser session only.
+     ════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-cipher-unlock" role="dialog" aria-modal="true" aria-labelledby="cipher-unlock-title">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title" id="cipher-unlock-title">Unlock Cipher</h2>
+      <button class="modal-close" id="cipher-unlock-close-btn" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="f13 lh muted" style="margin-bottom:1rem;" id="cipher-unlock-name"></p>
+
+      <div class="form-group">
+        <label class="form-label">Passphrase</label>
+        <input class="input input-mono" type="password" id="cipher-unlock-passphrase" placeholder="Enter the passphrase…" autocomplete="current-password" />
+      </div>
+
+      <label class="row gap-8 f13 muted" style="cursor:pointer;margin-bottom:1rem;">
+        <input type="checkbox" id="cipher-unlock-remember" />
+        Remember for this session
+      </label>
+
+      <div id="cipher-unlock-status" style="min-height:1.3rem;font-size:.82rem;color:var(--red);margin-bottom:.5rem;"></div>
+
+      <div class="form-actions">
+        <button class="btn btn-ghost" id="cipher-unlock-cancel-btn">Cancel</button>
+        <button class="btn btn-primary" id="cipher-unlock-confirm-btn">Unlock</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/vendor/argon2.umd.min.js"></script>
+<script src="js/cipher.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/notesStore.js"></script>
 <script src="js/app.js"></script>
