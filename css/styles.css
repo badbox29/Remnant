@@ -267,12 +267,17 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 
 /* Pin toggle — double chevron rather than a pushpin glyph, to stay in
    the parchment/ink/brass register rather than a flat modern icon font.
-   Unpinned: dark brown, pointing right (»), reading as "this panel could
-   tuck away." Pinned: gold/brass, flipped 180° to point left («), reading
-   as "anchored back into place." Color shift reuses the same brass accent
-   already used for the active-tab underline and active nav rows, so the
-   pinned state visually agrees with the rest of the app's vocabulary for
-   "this is the current/active one." */
+   Unpinned (default/rest state): muted gray-brown, pointing left («) —
+   reads as "could retreat/collapse." Pinned: warm brass gold, rotated
+   180° to point right (»), the same direction the panel pushes the
+   notes/scratchpad columns when it claims layout space — reading as
+   "anchored, pushing the content over." The color shift uses --muted
+   (clearly distinct, cooler gray-brown) for unpinned rather than
+   --brass-dark, since --brass-dark and --brass are too close in hue/
+   value to read as a real change at icon size; --brass for pinned
+   reuses the same accent already used for active tabs and active nav
+   rows, so the pinned state visually agrees with the rest of the app's
+   vocabulary for "this is the current/active one." */
 .nav-pin-btn {
   background: none;
   border: none;
@@ -281,13 +286,14 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   font-weight: 700;
   line-height: 1;
   padding: .2rem .4rem;
+  margin-right: -.6rem; /* pulls flush against the panel's right edge, past the header's own padding */
   border-radius: var(--r-sm);
-  color: var(--brass-dark);
-  opacity: .6;
+  color: var(--muted);
+  opacity: .7;
   transform: rotate(0deg);
   transition: opacity .15s, transform .25s ease, color .15s;
 }
-.nav-pin-btn:hover { background: var(--paper-dark); opacity: .85; }
+.nav-pin-btn:hover { background: var(--paper-dark); opacity: 1; }
 .nav-pin-btn.active {
   opacity: 1;
   color: var(--brass);
