@@ -267,17 +267,19 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 
 /* Pin toggle — double chevron rather than a pushpin glyph, to stay in
    the parchment/ink/brass register rather than a flat modern icon font.
-   Unpinned (default/rest state): muted gray-brown, pointing left («) —
-   reads as "could retreat/collapse." Pinned: warm brass gold, rotated
-   180° to point right (»), the same direction the panel pushes the
-   notes/scratchpad columns when it claims layout space — reading as
-   "anchored, pushing the content over." The color shift uses --muted
-   (clearly distinct, cooler gray-brown) for unpinned rather than
-   --brass-dark, since --brass-dark and --brass are too close in hue/
-   value to read as a real change at icon size; --brass for pinned
-   reuses the same accent already used for active tabs and active nav
-   rows, so the pinned state visually agrees with the rest of the app's
-   vocabulary for "this is the current/active one." */
+   Unpinned (default/rest state): faint and ghostly, pointing left («) —
+   low opacity so it visually recedes, reading as "inactive, could
+   retreat." Pinned: a filled brass pill behind a bold white-on-brass
+   chevron, rotated 180° to point right (»), the direction the panel
+   pushes content when it claims layout space.
+   A pure color swap between two similar-lightness browns proved nearly
+   imperceptible at this size (measured contrast ratio ~1.27 — well
+   below anything that reads as a real change). Everywhere else in this
+   app, "active" is signaled by a SHAPE change, not just color: the
+   active tab gets an underline, active nav rows get a background tint.
+   This button now follows that same pattern — pinned gets a filled
+   background, not just a darker glyph — which is a far more reliable
+   signal than chasing contrast within one narrow color family. */
 .nav-pin-btn {
   background: none;
   border: none;
@@ -285,20 +287,26 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   font-size: 1.05rem;
   font-weight: 700;
   line-height: 1;
-  padding: .2rem .4rem;
-  margin-right: -.6rem; /* pulls flush against the panel's right edge, past the header's own padding */
-  border-radius: var(--r-sm);
+  width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: -.5rem; /* pulls flush against the panel's right edge, past the header's own padding */
+  border-radius: 999px;
   color: var(--muted);
-  opacity: .7;
+  opacity: .45;
   transform: rotate(0deg);
-  transition: opacity .15s, transform .25s ease, color .15s;
+  transition: opacity .15s, transform .25s ease, color .15s, background .15s;
 }
-.nav-pin-btn:hover { background: var(--paper-dark); opacity: 1; }
+.nav-pin-btn:hover { background: var(--paper-dark); opacity: .8; }
 .nav-pin-btn.active {
   opacity: 1;
-  color: var(--brass);
+  background: var(--brass);
+  color: var(--paper);
   transform: rotate(180deg);
 }
+.nav-pin-btn.active:hover { background: var(--brass-dark); }
 
 .nav-tree {
   flex: 1;
