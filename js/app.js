@@ -28,12 +28,23 @@ const App = {
   // In-memory cache of the structure tree (Books/Chapters), rebuilt from
   // IndexedDB on boot and after any structural edit. Note CONTENT is never
   // cached wholesale here — only the lightweight book/chapter records and
-  // enough note metadata (id, title, chapterId, order, updatedAt) to render
-  // the tree without loading every note body into memory at once.
+  // enough note metadata (id, title, chapterId, order, updatedAt, type) to
+  // render the tree without loading every note body into memory at once.
   books: {},
   chapters: {},
-  noteSummaries: {},     // { [id]: { id, title, chapterId, order, updatedAt } } — for tree rendering
+  noteSummaries: {},     // { [id]: { id, title, chapterId, order, updatedAt, type } } — for tree rendering
   drag: null,            // transient drag state, see "Drag and drop" section
+
+  // ── Cipher session state — deliberately ALL outside App.data ───────
+  // None of the fields below are ever read by saveLocal() or
+  // assembleSyncPayload(), because neither function looks outside
+  // App.data. That's not a filter that has to be remembered at every
+  // persistence boundary — it's a structural guarantee: a Cipher's open/
+  // unlocked state simply cannot reach localStorage or KV, because the
+  // functions that write to those places never look here at all.
+  openCipherIds: [],     // ordered array of Cipher ids currently open as tabs (mirrors tabState.openIds, but for Ciphers, and NEVER persisted)
+  unlockedCiphers: {},   // { [cipherId]: { plaintext, key } } — only for Ciphers open AND successfully unlocked THIS session
+  sessionCipherKeys: {}, // { [cipherId]: key } — the OPT-IN "remember for this session" cache; survives a Cipher tab being closed and reopened, but never a page reload
 };
 
 // Default data shape (localStorage). Note CONTENT is never stored here —
@@ -67,6 +78,10 @@ function defaultData() {
     lastSyncTime: 0,      // epoch ms of last successful KV push
     pendingSync:  false,  // true when local content has changed since lastSyncTime
     lastModified: Date.now(),
+    // "Don't show this warning again" preference for the Cipher creation
+    // modal's no-recovery warning. Fine to sync via KV like any other UI
+    // preference — it's just a dismissal flag, holds no secret of any kind.
+    cipherWarningDismissed: false,
   };
 }
 
@@ -354,16 +369,41 @@ async function openNoteInTab(id) {
 
 function setActiveNote(id) {
   App.activeNoteId = id;
-  App.data.tabState.activeId = id;
+  // Only a plain Remnant's active-tab id is ever written into App.data —
+  // that object is what gets persisted to localStorage and synced to KV.
+  // A Cipher becoming active must never appear there, full stop; see the
+  // "Ciphers: creation, unlock, editing" section header for the full
+  // reasoning on why Cipher tab/session state stays structurally outside
+  // App.data everywhere, not just here.
+  if (!isCipherNote(App.noteSummaries[id])) {
+    App.data.tabState.activeId = id;
+  }
   renderActiveNote();
 }
 
 async function closeTab(id) {
-  App.data.tabState.openIds = App.data.tabState.openIds.filter(x => x !== id);
+  const wasCipher = App.openCipherIds.includes(id);
+  if (wasCipher) {
+    App.openCipherIds = App.openCipherIds.filter(x => x !== id);
+    // Closing a Cipher tab clears its UNLOCKED state — reopening it
+    // (this session or not) re-prompts, unless a session-cached key
+    // exists from an explicit "remember for this session" earlier.
+    delete App.unlockedCiphers[id];
+  } else {
+    App.data.tabState.openIds = App.data.tabState.openIds.filter(x => x !== id);
+  }
+
   if (App.activeNoteId === id) {
-    const remaining = App.data.tabState.openIds;
+    // Fall back to whichever tab list still has something open —
+    // Remnant tabs first, then Cipher tabs, matching how they're
+    // concatenated for rendering (see renderTabs).
+    const remaining = [...App.data.tabState.openIds, ...App.openCipherIds];
     App.activeNoteId = remaining.length ? remaining[remaining.length - 1] : null;
-    App.data.tabState.activeId = App.activeNoteId;
+    if (!isCipherNote(App.noteSummaries[App.activeNoteId])) {
+      App.data.tabState.activeId = App.activeNoteId;
+    } else {
+      App.data.tabState.activeId = null;
+    }
   }
   markDirty();
   renderTabs();
@@ -380,6 +420,8 @@ async function deleteNote(id) {
   await NotesStore.delete(id);
   delete App.openNotes[id];
   delete App.noteSummaries[id];
+  delete App.unlockedCiphers[id];
+  delete App.sessionCipherKeys[id];
   await closeTab(id);
   markDirty();
   renderNavTree();
@@ -409,6 +451,278 @@ async function saveActiveNote() {
   markDirty();
   renderTabs();    // tab title may have changed
   renderNavTree();  // nav row label may have changed
+}
+
+// ─── Ciphers: creation, unlock, editing ────────────────────────────
+//
+// A Cipher is a Remnant (type: 'cipher' on the note record) whose body
+// is end-to-end encrypted with a user passphrase. See cipher.js for the
+// crypto itself — this section only orchestrates: modals, in-memory
+// unlock state, and wiring a Cipher into the same tab/nav system a
+// plain Remnant already uses.
+//
+// Three pieces of in-memory-only state (see App object, top of file):
+//   App.openCipherIds    — which Cipher tabs are open right now
+//   App.unlockedCiphers  — { [id]: { plaintext, key } } for ones unlocked
+//                           THIS session (cleared when the tab is closed)
+//   App.sessionCipherKeys — { [id]: key } for ones the user opted into
+//                            "remember for this session" — survives a
+//                            tab close+reopen, but never a page reload
+// None of these three are ever read by saveLocal() or
+// assembleSyncPayload(), because neither function looks outside
+// App.data — so Cipher session/unlock state structurally cannot reach
+// localStorage or KV sync, not as a rule that has to be remembered, but
+// because the relevant code paths never look here at all.
+
+function generateCipherId() {
+  return generateId('k'); // 'k' for cipher — 'c' is already Chapter's prefix
+}
+
+function isCipherNote(noteOrSummary) {
+  return noteOrSummary?.type === 'cipher';
+}
+
+// openCipherCreateModal(chapterId) — entry point from the nav tree's
+// "+ New Cipher" row. chapterId is optional/null for an unfiled Cipher.
+function openCipherCreateModal(chapterId = null) {
+  App._pendingCipherChapterId = chapterId;
+  const dontRemind = !!App.data.cipherWarningDismissed;
+  document.getElementById('cipher-create-warning').style.display = dontRemind ? 'none' : '';
+  document.getElementById('cipher-create-passphrase').value = '';
+  document.getElementById('cipher-create-passphrase-confirm').value = '';
+  document.getElementById('cipher-create-dont-remind').checked = dontRemind;
+  document.getElementById('cipher-create-status').textContent = '';
+  openModal('modal-cipher-create');
+  document.getElementById('cipher-create-passphrase').focus();
+}
+
+async function submitCipherCreate() {
+  const statusEl = document.getElementById('cipher-create-status');
+  const pass1 = document.getElementById('cipher-create-passphrase').value;
+  const pass2 = document.getElementById('cipher-create-passphrase-confirm').value;
+
+  if (!pass1) { statusEl.textContent = 'Enter a passphrase.'; return; }
+  if (pass1 !== pass2) { statusEl.textContent = 'Passphrases do not match.'; return; }
+  if (pass1.length < 4) { statusEl.textContent = 'Passphrase is too short.'; return; }
+
+  const confirmBtn = document.getElementById('cipher-create-confirm-btn');
+  confirmBtn.disabled = true;
+  statusEl.style.color = 'var(--muted)';
+  statusEl.textContent = 'Deriving key…'; // Argon2id is deliberately slow — give the user something to read
+
+  // This try/catch guards ONLY the actual encryption + storage write —
+  // the part that can legitimately fail (e.g. Argon2 not loaded, a
+  // storage quota error). Bookkeeping/rendering after a successful
+  // creation is deliberately outside it, same reasoning as
+  // submitCipherUnlock: a rendering issue must never be mislabeled as
+  // "creating the Cipher failed" when it actually succeeded.
+  const chapterId = App._pendingCipherChapterId;
+  const id = generateCipherId();
+  let record, key, order;
+  try {
+    const result = await Cipher.createRecord(pass1, ''); // fresh Cipher starts blank, same as a fresh Remnant
+    record = result.record;
+    key    = result.key;
+    const siblingNotes = Object.values(App.noteSummaries).filter(n => n.chapterId === chapterId);
+    order = nextOrder(siblingNotes);
+    const note = {
+      id, chapterId, title: '', type: 'cipher', encrypted: record,
+      order, createdAt: Date.now(), updatedAt: Date.now(),
+    };
+    await NotesStore.set(id, note);
+  } catch (e) {
+    console.error('[Remnant] Cipher creation failed:', e);
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = 'Something went wrong creating the Cipher. Please try again.';
+    confirmBtn.disabled = false;
+    return;
+  }
+  confirmBtn.disabled = false;
+
+  // Creation succeeded — everything below is bookkeeping/rendering.
+  App.noteSummaries[id] = { id, title: '', chapterId, order, updatedAt: Date.now(), type: 'cipher' };
+  if (chapterId && App.chapters[chapterId]) {
+    App.chapters[chapterId].noteIds.push(id);
+    await NotesStore.setChapter(chapterId, App.chapters[chapterId]);
+  }
+
+  // Just created it — already "unlocked" for this session, no need to
+  // immediately re-prompt for the passphrase we just set.
+  App.unlockedCiphers[id] = { plaintext: '', key };
+  App.openCipherIds.push(id);
+  setActiveNote(id);
+
+  if (document.getElementById('cipher-create-dont-remind').checked) {
+    App.data.cipherWarningDismissed = true;
+    saveLocal();
+  }
+
+  closeModal('modal-cipher-create');
+  markDirty();
+  renderTabs();
+  renderNavTree();
+  renderActiveNote();
+}
+
+document.getElementById('cipher-create-confirm-btn')?.addEventListener('click', submitCipherCreate);
+document.getElementById('cipher-create-cancel-btn')?.addEventListener('click', () => closeModal('modal-cipher-create'));
+document.getElementById('cipher-create-close-btn')?.addEventListener('click', () => closeModal('modal-cipher-create'));
+
+// openCipherInTab(id) — entry point from clicking a Cipher row in the nav
+// tree, or re-selecting an already-open Cipher tab. If the Cipher is
+// already unlocked this session (or a session-cached key exists), skip
+// the passphrase prompt entirely; otherwise show the unlock modal.
+async function openCipherInTab(id) {
+  if (!App.openCipherIds.includes(id)) App.openCipherIds.push(id);
+
+  if (App.unlockedCiphers[id]) {
+    setActiveNote(id);
+    renderTabs();
+    renderActiveNote();
+    revealNoteInNavTree(id);
+    return;
+  }
+
+  const cachedKey = App.sessionCipherKeys[id];
+  if (cachedKey) {
+    const note = await NotesStore.get(id);
+    try {
+      const plaintext = await Cipher.decryptWithKey(cachedKey, note.encrypted);
+      App.unlockedCiphers[id] = { plaintext, key: cachedKey };
+      setActiveNote(id);
+      renderTabs();
+      renderActiveNote();
+      revealNoteInNavTree(id);
+      return;
+    } catch {
+      // Cached key no longer works (shouldn't normally happen) — fall
+      // through to a fresh prompt rather than fail silently.
+      delete App.sessionCipherKeys[id];
+    }
+  }
+
+  openCipherUnlockModal(id);
+}
+
+function openCipherUnlockModal(id) {
+  App._pendingUnlockCipherId = id;
+  const summary = App.noteSummaries[id];
+  document.getElementById('cipher-unlock-name').textContent =
+    (summary?.title?.trim() || 'Untitled Remnant') + ' is locked.';
+  document.getElementById('cipher-unlock-passphrase').value = '';
+  document.getElementById('cipher-unlock-remember').checked = false;
+  document.getElementById('cipher-unlock-status').textContent = '';
+  openModal('modal-cipher-unlock');
+  document.getElementById('cipher-unlock-passphrase').focus();
+}
+
+async function submitCipherUnlock() {
+  const id = App._pendingUnlockCipherId;
+  if (!id) return;
+  const statusEl = document.getElementById('cipher-unlock-status');
+  const passphrase = document.getElementById('cipher-unlock-passphrase').value;
+  if (!passphrase) { statusEl.textContent = 'Enter the passphrase.'; return; }
+
+  const confirmBtn = document.getElementById('cipher-unlock-confirm-btn');
+  confirmBtn.disabled = true;
+  statusEl.style.color = 'var(--muted)';
+  statusEl.textContent = 'Deriving key…';
+
+  // This try/catch guards ONLY the actual unlock attempt (read + decrypt).
+  // Deliberately narrow: a rendering hiccup AFTER a successful unlock must
+  // never be mischaracterized as a wrong passphrase or a generic unlock
+  // failure — that would be confusing to debug and, worse, could mask a
+  // real problem behind a misleading "Incorrect passphrase" message.
+  let plaintext, key;
+  try {
+    const note = await NotesStore.get(id);
+    if (!note || !note.encrypted) throw new Error('NOT_FOUND');
+    const result = await Cipher.decryptRecord(passphrase, note.encrypted);
+    plaintext = result.plaintext;
+    key       = result.key;
+  } catch (e) {
+    if (e.message === 'WRONG_PASSPHRASE') {
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = 'Incorrect passphrase.';
+    } else {
+      console.error('[Remnant] Cipher unlock failed:', e);
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = 'Something went wrong. Please try again.';
+    }
+    confirmBtn.disabled = false;
+    return;
+  }
+  confirmBtn.disabled = false;
+
+  // Unlock succeeded — everything from here on is bookkeeping/rendering,
+  // not authentication. No try/catch needed for this app's own state
+  // updates; if a rendering call ever throws, that's a real bug worth
+  // seeing as an uncaught error, not something to silently swallow or
+  // mislabel as a failed unlock.
+  App.unlockedCiphers[id] = { plaintext, key };
+  if (document.getElementById('cipher-unlock-remember').checked) {
+    App.sessionCipherKeys[id] = key;
+  }
+  closeModal('modal-cipher-unlock');
+  setActiveNote(id);
+  renderTabs();
+  renderActiveNote();
+  revealNoteInNavTree(id);
+}
+
+document.getElementById('cipher-unlock-confirm-btn')?.addEventListener('click', submitCipherUnlock);
+document.getElementById('cipher-unlock-cancel-btn')?.addEventListener('click', () => closeModal('modal-cipher-unlock'));
+document.getElementById('cipher-unlock-close-btn')?.addEventListener('click', () => closeModal('modal-cipher-unlock'));
+
+// saveActiveCipher() — the Cipher equivalent of saveActiveNote(). Title
+// stays plaintext (matches a Remnant; see notesStore.js header for why).
+// Body is re-encrypted with a FRESH IV on every save (never reuse an IV
+// with the same key — see cipher.js) using the already-derived key held
+// in App.unlockedCiphers, so saving never re-runs Argon2id — only the
+// initial unlock (or creation) pays that cost.
+// NOTE: this currently writes through the same #note-title-input/
+// #note-body-input fields a plain Remnant uses. Stage 3 replaces the
+// body field with the spotlight-reveal editor; the encrypt/save path
+// underneath does not change.
+async function saveActiveCipher() {
+  const id = App.activeNoteId;
+  if (!id) return;
+  const unlocked = App.unlockedCiphers[id];
+  if (!unlocked) return;
+
+  const note = await NotesStore.get(id);
+  if (!note) return;
+
+  const newTitle = document.getElementById('note-title-input').value;
+  const newPlaintext = document.getElementById('note-body-input').value;
+
+  unlocked.plaintext = newPlaintext;
+
+  const saltBytes = (() => {
+    const binary = atob(note.encrypted.salt);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  })();
+
+  note.title     = newTitle;
+  note.encrypted = await Cipher.encryptWithKey(unlocked.key, newPlaintext, saltBytes, note.encrypted.kdfParams);
+  note.updatedAt = Date.now();
+  await NotesStore.set(id, note);
+
+  if (App.noteSummaries[id]) {
+    App.noteSummaries[id].title     = newTitle;
+    App.noteSummaries[id].updatedAt = note.updatedAt;
+  }
+  markDirty();
+  renderTabs();
+  renderNavTree();
+}
+
+let saveCipherTimer = null;
+function scheduleSaveActiveCipher() {
+  clearTimeout(saveCipherTimer);
+  saveCipherTimer = setTimeout(saveActiveCipher, 400);
 }
 
 // ─── Scratchpad ─────────────────────────────────────────────────────
@@ -724,6 +1038,7 @@ async function loadNavData() {
     App.noteSummaries[id] = {
       id, title: note.title, chapterId: note.chapterId ?? null,
       order: note.order || 0, updatedAt: note.updatedAt || 0,
+      type: note.type || null, // null = plain Remnant; 'cipher' = Cipher
     };
   }
 }
@@ -782,6 +1097,30 @@ function renderTabs() {
         setActiveNote(id);
         renderTabs();
         revealNoteInNavTree(id); // clicking a tab also expands/highlights its spot in the nav
+      }
+    });
+    bar.appendChild(tab);
+  });
+
+  // Cipher tabs render after Remnant tabs, same combined bar. Pulled from
+  // App.openCipherIds — never App.data.tabState — so this list is purely
+  // in-memory for this session, matching everything else about how
+  // Cipher tab state stays outside what gets persisted/synced.
+  App.openCipherIds.forEach(id => {
+    const summary = App.noteSummaries[id];
+    if (!summary) return;
+    const tab = document.createElement('div');
+    tab.className = 'tab tab-cipher' + (id === App.activeNoteId ? ' active' : '');
+    tab.title = notePath(id);
+    tab.innerHTML = `<span class="tab-cipher-lock" title="Cipher">🔒</span><span class="tab-label"></span><span class="tab-close">&times;</span>`;
+    tab.querySelector('.tab-label').textContent = summary.title?.trim() || 'Untitled Remnant';
+    tab.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tab-close')) {
+        closeTab(id);
+      } else {
+        openCipherInTab(id); // re-checks unlocked/session-cache state, not just setActiveNote
+        renderTabs();
+        revealNoteInNavTree(id);
       }
     });
     bar.appendChild(tab);
@@ -952,6 +1291,13 @@ function buildChapterRow(chapter) {
     addRow.addEventListener('click', () => createNote(chapter.id));
     childWrap.appendChild(addRow);
 
+    // Pinned "+ New Cipher" row — second, right after New Remnant.
+    const addCipherRow = document.createElement('div');
+    addCipherRow.className = 'nav-row nav-row-note nav-row-add';
+    addCipherRow.innerHTML = `<span class="nav-row-caret placeholder">·</span><span class="nav-row-label">+ New Cipher</span>`;
+    addCipherRow.addEventListener('click', () => openCipherCreateModal(chapter.id));
+    childWrap.appendChild(addCipherRow);
+
     const notes = sortByOrder(Object.values(App.noteSummaries).filter(n => n.chapterId === chapter.id));
     if (!notes.length) {
       const hint = document.createElement('div');
@@ -969,17 +1315,22 @@ function buildChapterRow(chapter) {
 }
 
 function buildNoteRow(noteSummary) {
+  const isCipher = isCipherNote(noteSummary);
   const row = document.createElement('div');
-  row.className = 'nav-row nav-row-note' + (noteSummary.id === App.activeNoteId ? ' active' : '');
+  row.className = 'nav-row nav-row-note' + (isCipher ? ' nav-row-cipher' : '') + (noteSummary.id === App.activeNoteId ? ' active' : '');
   row.dataset.kind = 'note';
   row.dataset.id = noteSummary.id;
   row.draggable = true;
   row.innerHTML = `
     <span class="nav-row-caret placeholder">·</span>
     <span class="nav-row-label"></span>
+    ${isCipher ? '<span class="nav-row-cipher-badge" title="Cipher">🔒</span>' : ''}
   `;
   row.querySelector('.nav-row-label').textContent = noteSummary.title?.trim() || 'Untitled Remnant';
-  row.addEventListener('click', () => openNoteInTab(noteSummary.id));
+  row.addEventListener('click', () => {
+    if (isCipher) openCipherInTab(noteSummary.id);
+    else openNoteInTab(noteSummary.id);
+  });
 
   attachDragHandlers(row, {
     kind: 'note', id: noteSummary.id,
@@ -1288,8 +1639,43 @@ async function performBookDrop(drag, target, zone) {
 function renderActiveNote() {
   const titleEl = document.getElementById('note-title-input');
   const bodyEl  = document.getElementById('note-body-input');
-  const note    = App.activeNoteId ? App.openNotes[App.activeNoteId] : null;
+  const id      = App.activeNoteId;
+  const summary = id ? App.noteSummaries[id] : null;
 
+  if (!id || !summary) {
+    titleEl.value = '';
+    bodyEl.value  = '';
+    titleEl.disabled = true;
+    bodyEl.disabled  = true;
+    bodyEl.placeholder = 'Open a remnant, or click "+" to start a new one…';
+    return;
+  }
+
+  if (isCipherNote(summary)) {
+    const unlocked = App.unlockedCiphers[id];
+    if (!unlocked) {
+      // Shouldn't normally happen — a Cipher only becomes active via
+      // openCipherInTab, which always unlocks (or prompts) first. Guard
+      // anyway rather than show a stale/wrong body.
+      titleEl.value = summary.title || '';
+      titleEl.disabled = false;
+      bodyEl.value = '';
+      bodyEl.disabled = true;
+      bodyEl.placeholder = 'Locked.';
+      return;
+    }
+    titleEl.disabled = false;
+    bodyEl.disabled  = false;
+    // Stage 2: plain decrypted text, no spotlight-reveal disguise yet —
+    // that's stage 3. The encrypt/decrypt/save plumbing underneath is
+    // already final; only this rendering step changes later.
+    bodyEl.placeholder = 'Start writing…';
+    titleEl.value = summary.title || '';
+    bodyEl.value  = unlocked.plaintext || '';
+    return;
+  }
+
+  const note = App.openNotes[id];
   if (!note) {
     titleEl.value = '';
     bodyEl.value  = '';
@@ -1305,8 +1691,12 @@ function renderActiveNote() {
   bodyEl.value  = note.content || '';
 }
 
-document.getElementById('note-title-input')?.addEventListener('input', scheduleSaveActiveNote);
-document.getElementById('note-body-input')?.addEventListener('input', scheduleSaveActiveNote);
+function scheduleSaveActive() {
+  if (isCipherNote(App.noteSummaries[App.activeNoteId])) scheduleSaveActiveCipher();
+  else scheduleSaveActiveNote();
+}
+document.getElementById('note-title-input')?.addEventListener('input', scheduleSaveActive);
+document.getElementById('note-body-input')?.addEventListener('input', scheduleSaveActive);
 document.getElementById('scratchpad-input')?.addEventListener('input', scheduleSaveScratchpad);
 
 async function renderAll() {

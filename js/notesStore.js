@@ -13,10 +13,8 @@
  * IndexedDB's quota is disk-proportional and effectively unbounded for text.
  *
  * Three object stores in one database:
- *   notes       — keyed by note id. { id, chapterId, title, content, order,
- *                 createdAt, updatedAt }. chapterId is null for unfiled notes
- *                 — "Unfiled Notes" is a nav VIEW (every note with chapterId
- *                 === null), not a real Book/Chapter in the structure store.
+ *   notes       — keyed by note id. Two shapes share this store, told apart
+ *                 by the `type` field (see below).
  *   structure   — two logical record types sharing one store, namespaced by
  *                 key prefix: 'book:<id>' and 'chapter:<id>'. Kept in one
  *                 store (rather than two) because Books and Chapters are
@@ -35,6 +33,24 @@
  * itself is what determines display sequence among its siblings. This
  * keeps reordering a single-record write instead of requiring a rewrite
  * of the parent's id array on every drag.
+ *
+ * Two record shapes in the `notes` store, told apart by `type`:
+ *   Plain Remnant (no `type` field at all — its ABSENCE means "ordinary
+ *   Remnant," so every Remnant created before Ciphers existed is still a
+ *   perfectly valid record with zero migration):
+ *     { id, chapterId, title, content, order, createdAt, updatedAt }
+ *   Cipher (type: 'cipher' — a Remnant whose content is end-to-end
+ *   encrypted with a user passphrase; see cipher.js for the crypto and
+ *   app.js for the unlock/spotlight-reveal UI):
+ *     { id, chapterId, title, type: 'cipher', encrypted: { salt, iv,
+ *       ciphertext, kdfParams }, order, createdAt, updatedAt }
+ *   A Cipher record deliberately has NO `content` field at all — only
+ *   `encrypted`. Letting both fields coexist on the same record risks a
+ *   future bug accidentally reading/syncing stale or absent plaintext
+ *   instead of failing loudly; structurally absent is safer than present-
+ *   but-supposed-to-be-empty. cipher.js never touches notesStore.js
+ *   directly and has no IndexedDB/KV awareness at all — it only knows how
+ *   to turn (passphrase, plaintext) into an `encrypted` object and back.
  *
  * API (all async):
  *   NotesStore.get(id)                  → note | null
@@ -61,7 +77,7 @@
  *
  * Book shape:    { id, name, description, chapterIds: [], order, createdAt, updatedAt }
  * Chapter shape: { id, bookId, name, description, noteIds: [], order, createdAt, updatedAt }
- * Note shape:    { id, chapterId, title, content, order, createdAt, updatedAt }
+ * Note shape:    see "Two record shapes" above
  */
 const NotesStore = (() => {
   const DB_NAME           = 'remnant-notes';
