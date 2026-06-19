@@ -747,13 +747,13 @@ function commitInlineRename(kind, id, value) {
 // ─── Rendering ──────────────────────────────────────────────────────
 
 // notePath(noteId) — returns "Corpus Name / Scroll Name" for a filed
-// remnant, or "Unfiled Remnants" for one that isn't. Used for the tab
+// remnant, or "Loose Remnants" for one that isn't. Used for the tab
 // hover tooltip.
 function notePath(noteId) {
   const summary = App.noteSummaries[noteId];
-  if (!summary || !summary.chapterId) return 'Unfiled Remnants';
+  if (!summary || !summary.chapterId) return 'Loose Remnants';
   const chapter = App.chapters[summary.chapterId];
-  if (!chapter) return 'Unfiled Remnants';
+  if (!chapter) return 'Loose Remnants';
   const book = App.books[chapter.bookId];
   return book ? `${book.name} / ${chapter.name}` : chapter.name;
 }
@@ -808,7 +808,7 @@ function renderTabs() {
 //       "+ New Remnant" row — always first under an expanded scroll, same
 //        pinning rationale as New Scroll
 //       Remnant (sorted by order)
-//   "Unfiled Remnants" — always rendered, even when empty, so it reads as
+//   "Loose Remnants" — always rendered, even when empty, so it reads as
 //    a real, permanent part of the structure rather than a vanishing edge case
 
 function sortByOrder(arr) {
@@ -861,7 +861,7 @@ function buildBookRow(book) {
 
   row.querySelector('[data-action="delete-book"]')?.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (confirm(`Delete "${book.name}"? Scrolls and remnants inside will move to Unfiled Remnants.`)) {
+    if (confirm(`Delete "${book.name}"? Scrolls and remnants inside will move to Loose Remnants.`)) {
       deleteBook(book.id);
     }
   });
@@ -930,7 +930,7 @@ function buildChapterRow(chapter) {
 
   row.querySelector('[data-action="delete-chapter"]')?.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (confirm(`Delete "${chapter.name}"? Remnants inside will move to Unfiled Remnants.`)) {
+    if (confirm(`Delete "${chapter.name}"? Remnants inside will move to Loose Remnants.`)) {
       deleteChapter(chapter.id);
     }
   });
@@ -995,7 +995,7 @@ function buildUnfiledSection() {
 
   const header = document.createElement('div');
   header.className = 'nav-row nav-row-unfiled-header';
-  header.innerHTML = `<span class="nav-row-label">Unfiled Remnants</span>`;
+  header.innerHTML = `<span class="nav-row-label">Loose Remnants</span>`;
   wrap.appendChild(header);
 
   const childWrap = document.createElement('div');
