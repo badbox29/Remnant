@@ -68,8 +68,15 @@
     <div class="tab-bar" id="tab-bar">
       <!-- Tabs are rendered here by app.js: one per open note, plus a "+" new-note tab -->
     </div>
-    <div class="note-editor">
-      <input class="note-title-input" id="note-title-input" placeholder="Untitled remnant" />
+    <div class="note-editor" id="note-editor">
+      <div class="note-title-row">
+        <input class="note-title-input" id="note-title-input" placeholder="Untitled remnant" />
+        <button class="btn btn-sm btn-outline cipher-illuminate-btn" id="cipher-illuminate-btn" style="display:none;">Illuminate</button>
+        <button class="btn btn-sm btn-primary cipher-obscure-btn" id="cipher-obscure-btn" style="display:none;">Obscure</button>
+      </div>
+      <div class="cipher-illuminate-banner" id="cipher-illuminate-banner" style="display:none;">
+        Illuminated — this Cipher is shown in full, unmasked. Anyone looking at your screen can read it.
+      </div>
       <textarea class="note-body-input" id="note-body-input" placeholder="Start writing…"></textarea>
     </div>
   </section>
@@ -352,6 +359,40 @@
       <div class="form-actions">
         <button class="btn btn-ghost" id="cipher-unlock-cancel-btn">Cancel</button>
         <button class="btn btn-primary" id="cipher-unlock-confirm-btn">Unlock</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     Illuminate modal — re-enter the passphrase to view a Cipher in
+     full, unmasked. Always re-prompts even if already unlocked this
+     session; full exposure is treated as a bigger commitment than
+     ordinary spotlight viewing.
+     ════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-cipher-illuminate" role="dialog" aria-modal="true" aria-labelledby="cipher-illuminate-title">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title" id="cipher-illuminate-title">Illuminate Cipher</h2>
+      <button class="modal-close" id="cipher-illuminate-close-btn" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="f13 lh" style="margin-bottom:1rem;color:var(--red);">
+        This will display the Cipher in full, with no masking. Anyone able
+        to see your screen will be able to read it. Useful for editing —
+        but make sure you're somewhere private first.
+      </p>
+
+      <div class="form-group">
+        <label class="form-label">Passphrase</label>
+        <input class="input input-mono" type="password" id="cipher-illuminate-passphrase" placeholder="Enter the passphrase…" autocomplete="current-password" />
+      </div>
+
+      <div id="cipher-illuminate-status" style="min-height:1.3rem;font-size:.82rem;color:var(--red);margin-bottom:.5rem;"></div>
+
+      <div class="form-actions">
+        <button class="btn btn-ghost" id="cipher-illuminate-cancel-btn">Cancel</button>
+        <button class="btn btn-primary" id="cipher-illuminate-confirm-btn">Continue</button>
       </div>
     </div>
   </div>
