@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Remnant</title>
+
+<!-- Google Identity Services — required by auth.js's signInWithGoogle().
+     onload sets window.gisReady and fires 'gis-ready' for auth.js's waitForGIS(). -->
+<script src="https://accounts.google.com/gsi/client" async
+        onload="window.gisReady=true;window.dispatchEvent(new Event('gis-ready'))"></script>
+
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════
+     Top bar
+     ════════════════════════════════════════════════════════════ -->
+<header class="topbar">
+  <div class="brand">Remnant</div>
+  <div class="topbar-actions">
+    <span id="sync-indicator" class="sync-indicator" style="display:none;" title="Unsynced changes">●</span>
+    <button class="btn btn-sm btn-outline" id="save-session-btn" style="display:none;">Save Session</button>
+    <button class="btn btn-sm btn-ghost" id="open-settings-btn">Settings</button>
+  </div>
+</header>
+
+<!-- ════════════════════════════════════════════════════════════
+     Main layout — tab bar, active note editor, scratchpad panel
+     ════════════════════════════════════════════════════════════ -->
+<main class="main-layout">
+
+  <!-- Notes column -->
+  <section class="notes-column">
+    <div class="tab-bar" id="tab-bar">
+      <!-- Tabs are rendered here by app.js: one per open note, plus a "+" new-note tab -->
+    </div>
+    <div class="note-editor">
+      <input class="note-title-input" id="note-title-input" placeholder="Untitled note" />
+      <textarea class="note-body-input" id="note-body-input" placeholder="Start writing…"></textarea>
+    </div>
+    <div class="notes-list-toggle">
+      <button class="btn btn-sm btn-ghost" id="toggle-notes-list-btn">All Notes</button>
+    </div>
+    <div class="notes-list" id="notes-list" style="display:none;">
+      <!-- Full note list (for opening notes not currently in a tab), rendered by app.js -->
+    </div>
+  </section>
+
+  <!-- Scratchpad column — always present, never part of the tab/notes list -->
+  <aside class="scratchpad-column">
+    <div class="scratchpad-header">Scratchpad</div>
+    <textarea class="scratchpad-input" id="scratchpad-input" placeholder="Quick thoughts…"></textarea>
+  </aside>
+
+</main>
+
+<!-- ════════════════════════════════════════════════════════════
+     Toast
+     ════════════════════════════════════════════════════════════ -->
+<div class="toast" id="toast"></div>
+
+<!-- ════════════════════════════════════════════════════════════
+     Account setup wizard (used by Auth module — do not rename ids)
+     ════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-account-setup" role="dialog" aria-modal="true"
+     aria-labelledby="account-setup-title">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title" id="account-setup-title"></h2>
+    </div>
+    <div class="modal-body" id="account-setup-body"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     Settings modal (auth section ids are queried by name in auth.js
+     via renderSettingsSection() — do not rename them)
+     ════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-settings" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title" id="settings-title">Settings</h2>
+      <button class="modal-close" id="settings-close-btn" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Profile -->
+      <div class="settings-section">
+        <div class="settings-section-header">Profile</div>
+        <div class="settings-section-body">
+          <div class="form-group">
+            <label class="form-label">First Name</label>
+            <input class="input" id="settings-firstname-input" placeholder="First name…"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Last Name</label>
+            <input class="input" id="settings-lastname-input" placeholder="Last name…"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Username</label>
+            <input class="input" id="settings-username-input" placeholder="Username…"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Account — populated by Auth.renderSettingsSection() -->
+      <div class="settings-section">
+        <div class="settings-section-header">
+          Account &nbsp; <span id="settings-auth-badge" class="auth-badge auth-badge-guest">Guest</span>
+        </div>
+        <div class="settings-section-body">
+
+          <!-- Guest section -->
+          <div id="settings-guest-section">
+            <p class="f13 lh muted">You're using Remnant as a guest. Create a free account to sync your notes across devices.</p>
+          </div>
+
+          <!-- Token section -->
+          <div id="settings-token-group" style="display:none;">
+            <div class="settings-row" style="align-items:flex-start;gap:.75rem;">
+              <div style="min-width:0;flex:1;">
+                <div class="settings-row-label">Sync Token</div>
+                <div class="settings-row-sub" style="margin-bottom:.4rem;">
+                  Copy this token to sign in on another device.
+                </div>
+                <div style="display:flex;align-items:center;gap:.4rem;">
+                  <code id="settings-token-display" class="token-display" title="Click to select">—</code>
+                  <button class="btn btn-sm btn-outline" id="settings-token-copy">Copy</button>
+                </div>
+              </div>
+            </div>
+            <div class="settings-row" style="margin-top:.5rem;">
+              <div>
+                <div class="settings-row-label">Use existing token</div>
+                <div class="settings-row-sub">Sign in with a token from another device.</div>
+              </div>
+              <button class="btn btn-sm btn-outline" id="settings-token-change">Enter Token</button>
+            </div>
+          </div>
+
+          <!-- Google section -->
+          <div id="settings-google-info" style="display:none;"></div>
+
+          <!-- Worker URL (token & google) -->
+          <div id="settings-worker-group" style="display:none;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Worker URL</label>
+              <input class="input" id="settings-worker-url" placeholder="https://your-worker.workers.dev"/>
+              <div class="form-hint">Your Cloudflare Worker endpoint for syncing.</div>
+            </div>
+          </div>
+
+          <!-- Sync controls -->
+          <div id="settings-sync-controls" style="display:none;">
+            <div class="settings-row">
+              <span class="settings-row-label">Sync now</span>
+              <button class="btn btn-outline btn-sm" id="settings-sync-now-btn">Sync</button>
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Last synced</span>
+              <span class="settings-row-sub" id="settings-last-synced">Never</span>
+            </div>
+          </div>
+
+          <!-- Upgrade to Google (token accounts only) -->
+          <div id="settings-upgrade-google" style="display:none;">
+            <button class="btn btn-ghost btn-sm" id="settings-upgrade-google-btn">
+              Upgrade to Google sign-in →
+            </button>
+          </div>
+
+          <!-- Account action button -->
+          <div style="margin-top:.25rem;">
+            <button class="btn btn-ghost btn-sm" id="settings-account-btn">Switch Account</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script src="notesStore.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
