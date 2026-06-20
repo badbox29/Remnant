@@ -600,6 +600,14 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   padding-bottom: 1.5em; /* same breathing-room goal as the textarea's bottom-inset, but this is a plain div (not a textarea), so ordinary padding-bottom works correctly here — the textarea-padding quirk this app hit elsewhere is specific to <textarea> elements. */
 }
 
+/* Keyboard navigation mode indicator — there's no mouse-follow cursor
+   feedback in this mode (mouse movement is deliberately ignored), so a
+   left accent border gives a persistent visual cue that clicking
+   actually engaged a different interaction mode, not nothing. */
+.cipher-obscured-viewer.keyboard-mode {
+  box-shadow: inset 3px 0 0 var(--brass);
+}
+
 .cipher-obscured-row {
   min-height: 1.7em; /* keeps empty lines' vertical space even with no content yet */
   display: flex;
