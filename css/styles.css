@@ -558,12 +558,12 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   font-family: var(--font-body);
   font-size: .98rem;
   line-height: 1.7;
-  padding: 0 0 1.5em 0; /* bottom padding only — equal on both elements so they stay pixel-aligned. Without this, the textarea's max scrollTop (scrollHeight - clientHeight) leaves the very last line flush against the bottom edge, making it feel just out of reach until the window happens to be tall enough that it's not actually the last scrollable pixel. */
+  padding: 0;
 }
 
 .note-body-input {
   position: absolute;
-  inset: 0;
+  top: 0; left: 0; right: 0; bottom: 1.5em; /* NOT inset:0 — reserving a bottom gap here shrinks the textarea's own clientHeight, which genuinely increases its max scrollable distance (scrollHeight - clientHeight). This is different from padding-bottom on the textarea (a well-documented, unreliable cross-browser quirk where textarea bottom padding doesn't reliably count toward scrollable content) and from margin on the wrapper (which only moves where the edge sits, without changing how much room exists past the last line). Shrinking the element's own box is the one approach that actually works, because clientHeight is a direct term in the scroll-distance formula. */
   border: none;
   background: transparent;
   resize: none;
@@ -594,7 +594,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 
 .cipher-disguise-overlay {
   position: absolute;
-  inset: 0;
+  top: 0; left: 0; right: 0; bottom: 1.5em; /* matches .note-body-input's box exactly — see that rule's comment for why this is bottom-inset rather than padding */
   overflow: hidden;
   white-space: pre-wrap;
   word-wrap: break-word;
