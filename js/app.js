@@ -901,18 +901,23 @@ function clearIlluminateIdleTimer() {
 }
 
 // Trigger 3a: tab/window visibility change (switching to another browser
-// tab, minimizing, etc).
+// tab, minimizing, etc). Also re-checked on becoming VISIBLE again, not
+// just hidden — mobile browsers commonly freeze JS execution entirely
+// while backgrounded, so the 'hidden' handler may not run until the tab
+// is already foregrounded again, by which point stale illuminated
+// content could already be painted. Obscuring again on return closes
+// that gap.
+function obscureAllIlluminated() {
+  App.illuminatedCipherIds.slice().forEach(obscureCipher); // slice() — obscureCipher mutates the array we'd otherwise be iterating
+}
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') {
-    App.illuminatedCipherIds.slice().forEach(obscureCipher); // slice() — obscureCipher mutates the array we'd otherwise be iterating
-  }
+  obscureAllIlluminated();
 });
 // Trigger 3b: window losing focus (switching to another application
 // entirely, not just another browser tab — visibilitychange alone
 // doesn't always catch this depending on OS/window manager behavior).
-window.addEventListener('blur', () => {
-  App.illuminatedCipherIds.slice().forEach(obscureCipher);
-});
+window.addEventListener('blur', obscureAllIlluminated);
+window.addEventListener('pagehide', obscureAllIlluminated);
 
 document.getElementById('cipher-illuminate-btn')?.addEventListener('click', openCipherIlluminateModal);
 document.getElementById('cipher-illuminate-confirm-btn')?.addEventListener('click', submitCipherIlluminate);
@@ -1220,6 +1225,20 @@ document.getElementById('nav-toggle-btn')?.addEventListener('click', () => {
   setPanelOpen(!isPanelOpen());
 });
 document.getElementById('nav-panel-scrim')?.addEventListener('click', () => setPanelOpen(false));
+
+// Backup outside-tap close: the scrim's bounds rely on .main-layout's
+// height (calc(100vh - 57px)), which mobile browser chrome (URL bar
+// collapsing/expanding) can make briefly inaccurate. This listens at the
+// document level instead of depending on the scrim element's exact
+// rendered bounds — closes the panel on any tap/click outside it,
+// whenever it's open in pop-out (non-pinned) mode.
+document.addEventListener('click', (e) => {
+  if (!isPanelOpen() || isPinnedActive()) return;
+  const panel = document.getElementById('nav-panel');
+  const toggleBtn = document.getElementById('nav-toggle-btn');
+  if (panel.contains(e.target) || toggleBtn?.contains(e.target)) return;
+  setPanelOpen(false);
+}, true);
 document.getElementById('nav-pin-btn')?.addEventListener('click', () => setPinned(!isPinned()));
 
 document.getElementById('nav-new-book-btn')?.addEventListener('click', async () => {
@@ -2083,30 +2102,36 @@ function attachCipherSpotlightTracking() {
   const bodyEl = document.getElementById('note-body-input');
   if (!bodyEl) return;
 
-  bodyEl.addEventListener('mousemove', (e) => {
-    App._lastPointerY = e.clientY;
-    if (isCipherNote(App.noteSummaries[App.activeNoteId])) {
-      syncSpotlightToPointer(App.activeNoteId, e.clientY);
-    }
-  });
+  // Throttled to once per animation frame — syncSpotlightToPointer calls
+  // getBoundingClientRect() on every token, which forces a layout flush.
+  // Running that on every raw touchmove/scroll event (which can fire far
+  // more often than once per frame) was heavy enough to visibly stall
+  // scrolling on mobile. rAF-throttling caps the real work to the
+  // browser's own paint cadence without dropping responsiveness.
+  let spotlightFrameQueued = false;
+  function queueSpotlightSync(y) {
+    App._lastPointerY = y;
+    if (spotlightFrameQueued) return;
+    spotlightFrameQueued = true;
+    requestAnimationFrame(() => {
+      spotlightFrameQueued = false;
+      if (isCipherNote(App.noteSummaries[App.activeNoteId])) {
+        syncSpotlightToPointer(App.activeNoteId, App._lastPointerY);
+      }
+    });
+  }
+
+  bodyEl.addEventListener('mousemove', (e) => queueSpotlightSync(e.clientY));
 
   bodyEl.addEventListener('touchmove', (e) => {
     if (!e.touches?.length) return;
-    const y = e.touches[0].clientY - TOUCH_REVEAL_OFFSET_PX;
-    App._lastPointerY = y;
-    if (isCipherNote(App.noteSummaries[App.activeNoteId])) {
-      syncSpotlightToPointer(App.activeNoteId, y);
-    }
+    queueSpotlightSync(e.touches[0].clientY - TOUCH_REVEAL_OFFSET_PX);
   }, { passive: true });
 
   // Keep the overlay in sync with manual scrolling (mouse wheel, etc) —
   // without this, scrolling the textarea would leave the spotlight
   // pointing at stale screen coordinates relative to the now-moved text.
-  bodyEl.addEventListener('scroll', () => {
-    if (isCipherNote(App.noteSummaries[App.activeNoteId])) {
-      syncSpotlightToPointer(App.activeNoteId, App._lastPointerY);
-    }
-  });
+  bodyEl.addEventListener('scroll', () => queueSpotlightSync(App._lastPointerY), { passive: true });
 }
 attachCipherSpotlightTracking();
 
@@ -2124,6 +2149,15 @@ document.getElementById('note-body-input')?.addEventListener('input', () => {
   if (isCipherNote(App.noteSummaries[App.activeNoteId])) rebuildCipherOverlay(App.activeNoteId);
 });
 document.getElementById('scratchpad-input')?.addEventListener('input', scheduleSaveScratchpad);
+
+// Mobile pop-out toggle. No-op on desktop (button is CSS-hidden there,
+// but harmless if clicked since the column is already always visible).
+function setScratchpadOpen(open) {
+  document.getElementById('scratchpad-column')?.classList.toggle('open', open);
+}
+document.getElementById('scratchpad-toggle-btn')?.addEventListener('click', () => setScratchpadOpen(true));
+document.getElementById('scratchpad-close-btn')?.addEventListener('click', () => setScratchpadOpen(false));
+document.getElementById('scratchpad-scrim')?.addEventListener('click', () => setScratchpadOpen(false));
 
 async function renderAll() {
   // Rehydrate open tabs from IndexedDB
