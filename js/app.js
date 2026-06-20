@@ -2035,6 +2035,14 @@ function rebuildCipherOverlay(id) {
     overlayEl.appendChild(span);
   });
 
+  // Rebuilding via innerHTML = '' resets scrollTop to 0 as a side effect
+  // of clearing the DOM content. This fires on every keystroke, so
+  // without restoring scroll position here, typing while scrolled down
+  // would snap the overlay back to the top on every character while the
+  // real textarea stays scrolled — reintroducing the same desync this
+  // function exists to prevent.
+  overlayEl.scrollTop = bodyEl.scrollTop;
+
   syncSpotlightToPointer(id, App._lastPointerY);
 }
 
@@ -2103,6 +2111,7 @@ const TOUCH_REVEAL_OFFSET_PX = 48;
 
 function attachCipherSpotlightTracking() {
   const bodyEl = document.getElementById('note-body-input');
+  const overlayEl = document.getElementById('cipher-disguise-overlay');
   if (!bodyEl) return;
 
   // Throttled to once per animation frame — syncSpotlightToPointer calls
@@ -2131,10 +2140,19 @@ function attachCipherSpotlightTracking() {
     queueSpotlightSync(e.touches[0].clientY - TOUCH_REVEAL_OFFSET_PX);
   }, { passive: true });
 
-  // Keep the overlay in sync with manual scrolling (mouse wheel, etc) —
-  // without this, scrolling the textarea would leave the spotlight
-  // pointing at stale screen coordinates relative to the now-moved text.
-  bodyEl.addEventListener('scroll', () => queueSpotlightSync(App._lastPointerY), { passive: true });
+  // Keep the overlay's CONTENT scrolled in lockstep with the real
+  // textarea, not just re-run the reveal calculation. The overlay never
+  // scrolls on its own (it has no scrollbar — overflow: hidden, fixed to
+  // the wrap's box) because it's a plain absolutely-positioned div, not
+  // a scroll container. Without explicitly mirroring scrollTop here, the
+  // overlay's tokens stay frozen at the positions they were built at,
+  // while the real (invisible) text scrolls past underneath them — so
+  // the reveal target drifts completely out of sync with what's actually
+  // visible the moment the user scrolls at all, not just slightly stale.
+  bodyEl.addEventListener('scroll', () => {
+    if (overlayEl) overlayEl.scrollTop = bodyEl.scrollTop;
+    queueSpotlightSync(App._lastPointerY);
+  }, { passive: true });
 }
 attachCipherSpotlightTracking();
 
