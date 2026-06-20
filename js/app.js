@@ -761,73 +761,22 @@ function scheduleSaveActiveCipher() {
 
 // ─── Disguise text generation ──────────────────────────────────────
 //
-// Generates fake text that occupies roughly the same visual footprint
-// (word count, word lengths) as a real line, so the spotlight-reveal
-// editor's masked state reads as "a person is reading a normal page,"
-// not "this is obviously a redacted block." Two styles, user-selectable
-// in settings (App.data.cipherDisguiseMode):
-//   'lorem' — classic filler Latin, looks like real prose at a glance.
-//             Better disguise to an onlooker; can be mildly distracting
-//             to the user's own eye since it's almost-readable and the
-//             eye keeps trying to parse it while scanning for the
-//             revealed line.
-//   'noise' — abstract character clusters mimicking word-length/
-//             punctuation rhythm without forming anything pronounceable.
-//             Quieter to the user, slightly weaker disguise.
-// Disguise text is regenerated fresh each time a Cipher is unlocked
-// (not stored anywhere) — it only ever needs to exist for the current
-// render, and regenerating is cheap.
+// Ciphertext-looking gibberish, character-for-character matching the
+// real content's length — letters, digits, and symbols, not pronounceable
+// words. This is what should be sitting behind the spotlight at rest:
+// it should read as "encrypted data," not "almost-real prose." Generated
+// per-token on the fly by syncSpotlightToPointer/rebuildCipherOverlay
+// (see noiseToken below) and cached per-token in dataset.noise so the
+// same token doesn't visibly flicker to different gibberish on every
+// re-render while it's NOT being hovered.
 
-const LOREM_WORDS = [
-  'lorem','ipsum','dolor','sit','amet','consectetur','adipiscing','elit',
-  'sed','do','eiusmod','tempor','incididunt','ut','labore','et','dolore',
-  'magna','aliqua','enim','ad','minim','veniam','quis','nostrud','exercitation',
-  'ullamco','laboris','nisi','aliquip','ex','ea','commodo','consequat',
-  'duis','aute','irure','in','reprehenderit','voluptate','velit','esse',
-  'cillum','fugiat','nulla','pariatur','excepteur','sint','occaecat','cupidatat',
-  'non','proident','sunt','culpa','qui','officia','deserunt','mollit','anim','id','est','laborum',
-];
-
-function randomLoremWord() {
-  return LOREM_WORDS[Math.floor(Math.random() * LOREM_WORDS.length)];
-}
-
-// noiseWord(length) — a pronounceable-ish but meaningless cluster of
-// letters, roughly the requested length. Alternates consonant/vowel
-// groups so it has SOME rhythm (avoids looking like literal hex/base64
-// noise, which would itself read as "this is encrypted" at a glance).
-const NOISE_CONSONANTS = 'bcdfghjklmnpqrstvwxz';
-const NOISE_VOWELS = 'aeiouy';
-function noiseWord(length) {
+const NOISE_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*+=/?';
+function noiseToken(token) {
   let out = '';
-  let useConsonant = Math.random() < 0.5;
-  while (out.length < length) {
-    const pool = useConsonant ? NOISE_CONSONANTS : NOISE_VOWELS;
-    out += pool[Math.floor(Math.random() * pool.length)];
-    useConsonant = !useConsonant;
+  for (let i = 0; i < token.length; i++) {
+    out += NOISE_CHARS[Math.floor(Math.random() * NOISE_CHARS.length)];
   }
-  return out.slice(0, length);
-}
-
-// disguiseLine(realLine) — generates one disguise line matching realLine's
-// approximate word count and word lengths, so the overall shape (and
-// therefore the textarea's line wrapping / paragraph silhouette) stays
-// consistent between the real and disguised render.
-function disguiseLine(realLine) {
-  if (!realLine) return '';
-  const mode = App.data.cipherDisguiseMode || 'lorem';
-  const words = realLine.split(/\s+/).filter(Boolean);
-  if (!words.length) return '';
-  const disguiseWords = words.map(w => {
-    if (mode === 'noise') return noiseWord(Math.max(2, w.length));
-    return randomLoremWord();
-  });
-  return disguiseWords.join(' ');
-}
-
-// disguiseLines(realLines) — convenience wrapper for a whole array.
-function disguiseLines(realLines) {
-  return realLines.map(disguiseLine);
+  return out;
 }
 
 // ─── Illuminate / Obscure ───────────────────────────────────────────
@@ -2038,33 +1987,28 @@ function renderActiveNote() {
 // driven by pointer position — see updateSpotlightLine below — and
 // re-evaluated on every mousemove/touchmove over the body.
 
-let cipherOverlayLineCount = 0; // tracks how many <div> lines currently exist, so rebuilds can diff cheaply rather than always tearing down and rebuilding every span on every keystroke
 
 function rebuildCipherOverlay(id) {
   const overlayEl = document.getElementById('cipher-disguise-overlay');
   const bodyEl    = document.getElementById('note-body-input');
-  if (overlayEl.style.display === 'none') return; // illuminated or not a masked Cipher — nothing to build
+  if (overlayEl.style.display === 'none') return;
 
-  const realLines = bodyEl.value.split('\n');
+  const realText = bodyEl.value;
   overlayEl.innerHTML = '';
-  realLines.forEach((realLine, i) => {
-    const lineEl = document.createElement('div');
-    lineEl.className = 'cipher-overlay-line';
-    lineEl.dataset.lineIndex = i;
+  overlayEl.style.width = bodyEl.clientWidth + 'px';
 
-    const disguiseEl = document.createElement('span');
-    disguiseEl.className = 'cipher-overlay-line-disguise';
-    disguiseEl.textContent = disguiseLine(realLine);
-
-    const realEl = document.createElement('span');
-    realEl.className = 'cipher-overlay-line-real';
-    realEl.textContent = realLine;
-
-    lineEl.appendChild(disguiseEl);
-    lineEl.appendChild(realEl);
-    overlayEl.appendChild(lineEl);
+  // Word-level spans (not per-logical-line divs) so the overlay wraps
+  // EXACTLY like the real textarea — a long line that wraps into several
+  // visual rows is represented by several spans landing on different
+  // rows, not one block that reveals all at once.
+  const words = realText.split(/(\s+)/); // keep whitespace tokens too, so spacing/wrapping matches exactly
+  words.forEach(token => {
+    const span = document.createElement('span');
+    span.className = 'cipher-overlay-token';
+    span.dataset.real = token;
+    span.textContent = /^\s+$/.test(token) ? token : noiseToken(token);
+    overlayEl.appendChild(span);
   });
-  cipherOverlayLineCount = realLines.length;
 
   syncSpotlightToPointer(id, App._lastPointerY);
 }
@@ -2085,18 +2029,43 @@ function lineHeightPx() {
 // line as revealed in the overlay. All other lines are un-revealed.
 function syncSpotlightToPointer(id, clientY) {
   if (clientY == null) return;
-  const bodyEl = document.getElementById('note-body-input');
   const overlayEl = document.getElementById('cipher-disguise-overlay');
   if (overlayEl.style.display === 'none') return;
 
-  const rect = bodyEl.getBoundingClientRect();
-  const relativeY = clientY - rect.top + bodyEl.scrollTop;
   const lh = lineHeightPx();
-  const lineIndex = Math.max(0, Math.min(cipherOverlayLineCount - 1, Math.floor(relativeY / lh)));
+  const tokens = overlayEl.querySelectorAll('.cipher-overlay-token');
+  // Pass 1: find every token's row top (rounded to kill sub-pixel jitter).
+  const rowTops = new Set();
+  const tops = [];
+  tokens.forEach(t => {
+    const top = Math.round(t.getBoundingClientRect().top);
+    tops.push(top);
+    rowTops.add(top);
+  });
+  const sortedRows = Array.from(rowTops).sort((a, b) => a - b);
+  if (!sortedRows.length) return;
 
-  const lines = overlayEl.querySelectorAll('.cipher-overlay-line');
-  lines.forEach((lineEl, i) => {
-    lineEl.classList.toggle('revealed', i === lineIndex);
+  // Which row is the cursor actually over.
+  let hoveredRow = sortedRows[0];
+  for (const top of sortedRows) {
+    if (clientY >= top - lh / 2 && clientY < top + lh / 2) { hoveredRow = top; break; }
+    if (clientY < top) break;
+    hoveredRow = top;
+  }
+  const hoveredIdx = sortedRows.indexOf(hoveredRow);
+  const aboveRow = sortedRows[hoveredIdx - 1];
+  const belowRow = sortedRows[hoveredIdx + 1];
+
+  tokens.forEach((t, i) => {
+    const top = tops[i];
+    t.classList.remove('revealed', 'blurred');
+    if (top === hoveredRow) {
+      t.textContent = t.dataset.real;
+      t.classList.add('revealed');
+    } else {
+      t.textContent = /^\s+$/.test(t.dataset.real) ? t.dataset.real : t.dataset.noise || (t.dataset.noise = noiseToken(t.dataset.real));
+      if (top === aboveRow || top === belowRow) t.classList.add('blurred');
+    }
   });
 }
 
