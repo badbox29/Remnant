@@ -759,16 +759,22 @@ function scheduleSaveActiveCipher() {
   saveCipherTimer = setTimeout(saveActiveCipher, 400);
 }
 
-// ─── Disguise text generation ──────────────────────────────────────
+// ─── Disguise text generation (currently UNUSED — see note below) ──
 //
-// Ciphertext-looking gibberish, character-for-character matching the
-// real content's length — letters, digits, and symbols, not pronounceable
-// words. This is what should be sitting behind the spotlight at rest:
-// it should read as "encrypted data," not "almost-real prose." Generated
-// per-token on the fly by syncSpotlightToPointer/rebuildCipherOverlay
-// (see noiseToken below) and cached per-token in dataset.noise so the
-// same token doesn't visibly flicker to different gibberish on every
-// re-render while it's NOT being hovered.
+// Produces ciphertext-looking gibberish, character-for-character
+// matching a real token's length. Kept for a later theming pass, but
+// NOT currently wired into the spotlight overlay: substituting noise
+// characters of matching length does not reliably reproduce the real
+// text's wrap points (confirmed empirically — span-per-word layout
+// with substituted text measured a different total wrapped height than
+// the real text at the same width, causing some rows to become
+// unreachable). The overlay now renders the REAL text in every token
+// and disguises it with CSS blur alone, which guarantees identical
+// wrapping since it's literally the same string. If scrambled-character
+// disguise comes back later, it should use a "mirror div" style
+// technique (real text drives layout; a separate, position-matched
+// element renders the substitute glyphs on top) rather than building
+// independent layout from substituted text.
 
 const NOISE_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*+=/?';
 function noiseToken(token) {
@@ -2046,16 +2052,28 @@ function rebuildCipherOverlay(id) {
   overlayEl.innerHTML = '';
   overlayEl.style.width = bodyEl.clientWidth + 'px';
 
-  // Word-level spans (not per-logical-line divs) so the overlay wraps
-  // EXACTLY like the real textarea — a long line that wraps into several
-  // visual rows is represented by several spans landing on different
-  // rows, not one block that reveals all at once.
+  // Word-level spans, but each one renders its OWN real text — not
+  // substituted noise. This guarantees the overlay wraps IDENTICALLY to
+  // the real textarea, since it's literally the same string laid out
+  // with the same font/width. An earlier version substituted scrambled
+  // noise of matching character length, which looked right in principle
+  // but did NOT reliably wrap identically — confirmed empirically (the
+  // overlay's own scrollHeight measured taller than the textarea's for
+  // the same text/width). Word-boundary line-breaking is sensitive to
+  // more than character count, and span-per-word layout has documented
+  // cross-browser quirks distinct from one continuous text node anyway.
+  // Disguise is now achieved with CSS blur alone (see .cipher-overlay-
+  // token / .blurred in styles.css) rather than character substitution.
+  // A scrambled-character disguise may return later as part of a
+  // broader theming pass, but needs a technique that doesn't risk
+  // wrap-mismatch (e.g. the textarea-caret-position "mirror div"
+  // pattern, which reflows the REAL text and overlays a styled
+  // replacement on top, rather than building independent layout).
   const words = realText.split(/(\s+)/); // keep whitespace tokens too, so spacing/wrapping matches exactly
   words.forEach(token => {
     const span = document.createElement('span');
     span.className = 'cipher-overlay-token';
-    span.dataset.real = token;
-    span.textContent = /^\s+$/.test(token) ? token : noiseToken(token);
+    span.textContent = token;
     overlayEl.appendChild(span);
   });
 
@@ -2117,12 +2135,13 @@ function syncSpotlightToPointer(id, clientY) {
     const top = tops[i];
     t.classList.remove('revealed', 'blurred');
     if (top === hoveredRow) {
-      t.textContent = t.dataset.real;
       t.classList.add('revealed');
-    } else {
-      t.textContent = /^\s+$/.test(t.dataset.real) ? t.dataset.real : t.dataset.noise || (t.dataset.noise = noiseToken(t.dataset.real));
-      if (top === aboveRow || top === belowRow) t.classList.add('blurred');
+    } else if (top === aboveRow || top === belowRow) {
+      t.classList.add('blurred');
     }
+    // Anything else keeps the default (unclassed) heavy-blur state —
+    // no third class needed, that default already fully obscures real
+    // text on its own.
   });
 }
 
