@@ -222,10 +222,34 @@ const Cipher = (() => {
     return { plaintext, key };
   }
 
+  // verifyAndDeriveKey(passphrase, record) — derives the key and proves
+  // it's correct by decrypting ONLY THE FIRST LINE, never the rest of
+  // the document. AES-GCM's authentication tag means a wrong key fails
+  // decryption outright on ANY line — checking one line is exactly as
+  // conclusive as checking all of them, so there's no security reason
+  // to decrypt more than this just to verify a passphrase.
+  // This is the unlock path for read-only/obscured viewing: the
+  // document should stay genuinely encrypted at rest, line by line,
+  // with only the line currently under the cursor ever decrypted (via
+  // decryptLineWithKey, called on demand by the viewer) — full-body
+  // decryption (decryptRecord above) is reserved for Illuminate, an
+  // explicit, separately-gated, higher-exposure editing mode.
+  // Throws WRONG_PASSPHRASE / MALFORMED_RECORD same as decryptRecord.
+  async function verifyAndDeriveKey(passphrase, record) {
+    const saltBytes = base64ToBytes(record.salt);
+    const key = await deriveKey(passphrase, saltBytes, record.kdfParams);
+    if (!Array.isArray(record?.lines) || !record.lines.length) {
+      throw new Error('MALFORMED_RECORD');
+    }
+    await decryptLineWithKey(key, record.lines[0]); // throws WRONG_PASSPHRASE on mismatch; result discarded — this call exists purely to prove the key works
+    return { key };
+  }
+
   return {
     deriveKey,
     createRecord,
     decryptRecord,
+    verifyAndDeriveKey,
     decryptLineWithKey,
     encryptLinesWithKey,
     decryptAllLinesWithKey,

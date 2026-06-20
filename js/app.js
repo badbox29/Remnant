@@ -403,13 +403,17 @@ async function closeTab(id) {
   const wasCipher = App.openCipherIds.includes(id);
   if (wasCipher) {
     App.openCipherIds = App.openCipherIds.filter(x => x !== id);
+    // obscureCipher flushes any pending debounced save (if this Cipher
+    // is illuminated and mid-edit) BEFORE we delete its unlocked-state
+    // entry below — calling it first, and awaiting it, means a save
+    // started just before closing the tab still completes and writes to
+    // encrypted storage, rather than being silently lost because
+    // unlockedCiphers[id] was already gone by the time the flush ran.
+    await obscureCipher(id);
     // Closing a Cipher tab clears its UNLOCKED state — reopening it
     // (this session or not) re-prompts, unless a session-cached key
     // exists from an explicit "remember for this session" earlier.
     delete App.unlockedCiphers[id];
-    // Always clears illuminate state too — there is no "stay illuminated
-    // across a close+reopen," full stop, regardless of session cache.
-    obscureCipher(id);
   } else {
     App.data.tabState.openIds = App.data.tabState.openIds.filter(x => x !== id);
   }
@@ -574,8 +578,15 @@ async function submitCipherCreate() {
   }
 
   // Just created it — already "unlocked" for this session, no need to
-  // immediately re-prompt for the passphrase we just set.
-  App.unlockedCiphers[id] = { plaintext: '', key };
+  // immediately re-prompt for the passphrase we just set. Also
+  // auto-ILLUMINATED (not just unlocked): the user just set this
+  // passphrase moments ago, and a brand-new, empty Cipher has nothing
+  // to protect yet — landing in the read-only obscured viewer with no
+  // way to start typing would be a bad first moment. Every Cipher
+  // opened or reopened AFTER this point goes through the normal
+  // unlock-without-decrypt path; this is deliberately the one exception.
+  App.unlockedCiphers[id] = { key, plaintext: '' };
+  App.illuminatedCipherIds.push(id);
   App.openCipherIds.push(id);
   setActiveNote(id);
 
@@ -614,8 +625,12 @@ async function openCipherInTab(id) {
   if (cachedKey) {
     const note = await NotesStore.get(id);
     try {
-      const plaintext = await Cipher.decryptAllLinesWithKey(cachedKey, note.encrypted);
-      App.unlockedCiphers[id] = { plaintext, key: cachedKey };
+      // Prove the cached key still works by decrypting just the first
+      // line — same reasoning as verifyAndDeriveKey: a wrong/stale key
+      // fails on ANY line via AES-GCM's auth tag, so this is exactly as
+      // conclusive as decrypting everything, without actually doing so.
+      await Cipher.decryptLineWithKey(cachedKey, note.encrypted.lines[0]);
+      App.unlockedCiphers[id] = { key: cachedKey, plaintext: null };
       setActiveNote(id);
       renderTabs();
       renderActiveNote();
@@ -655,18 +670,24 @@ async function submitCipherUnlock() {
   statusEl.style.color = 'var(--muted)';
   statusEl.textContent = 'Deriving key…';
 
-  // This try/catch guards ONLY the actual unlock attempt (read + decrypt).
-  // Deliberately narrow: a rendering hiccup AFTER a successful unlock must
-  // never be mischaracterized as a wrong passphrase or a generic unlock
-  // failure — that would be confusing to debug and, worse, could mask a
-  // real problem behind a misleading "Incorrect passphrase" message.
-  let plaintext, key;
+  // This try/catch guards ONLY the actual unlock attempt. Deliberately
+  // narrow: a rendering hiccup AFTER a successful unlock must never be
+  // mischaracterized as a wrong passphrase or a generic unlock failure.
+  //
+  // Uses verifyAndDeriveKey, NOT decryptRecord — unlock now only proves
+  // the passphrase is correct (by decrypting just the first line) and
+  // derives a working key. It does NOT decrypt the rest of the body.
+  // The document stays genuinely encrypted at rest after unlock; only
+  // the line currently under the cursor gets decrypted on demand by the
+  // read-only obscured viewer (see renderCipherObscuredViewer). Full-
+  // body decryption is reserved for Illuminate — an explicit, separately
+  // re-prompted, higher-exposure editing mode.
+  let key;
   try {
     const note = await NotesStore.get(id);
     if (!note || !note.encrypted) throw new Error('NOT_FOUND');
-    const result = await Cipher.decryptRecord(passphrase, note.encrypted);
-    plaintext = result.plaintext;
-    key       = result.key;
+    const result = await Cipher.verifyAndDeriveKey(passphrase, note.encrypted);
+    key = result.key;
   } catch (e) {
     if (e.message === 'WRONG_PASSPHRASE') {
       statusEl.style.color = 'var(--red)';
@@ -689,7 +710,10 @@ async function submitCipherUnlock() {
   // updates; if a rendering call ever throws, that's a real bug worth
   // seeing as an uncaught error, not something to silently swallow or
   // mislabel as a failed unlock.
-  App.unlockedCiphers[id] = { plaintext, key };
+  // plaintext starts null — it's only ever populated by illuminateCipher,
+  // and discarded again by obscureCipher. See the "Ciphers" section
+  // header comment for the full reasoning on why this split exists.
+  App.unlockedCiphers[id] = { key, plaintext: null };
   if (document.getElementById('cipher-unlock-remember').checked) {
     App.sessionCipherKeys[id] = key;
   }
@@ -841,14 +865,17 @@ async function submitCipherIlluminate() {
   statusEl.textContent = 'Verifying…';
 
   // Narrow try/catch, same discipline as submitCipherUnlock: this guards
-  // ONLY the passphrase re-verification (a fresh decrypt attempt against
-  // the record on disk — not just trusting the already-unlocked in-memory
-  // copy, since the whole point is an independent checkpoint). Rendering
-  // afterward is outside it.
+  // ONLY the passphrase re-verification AND the full-body decryption that
+  // now happens here. Illuminate is the ONE place a Cipher's full
+  // plaintext gets reconstructed in memory — unlock (submitCipherUnlock)
+  // deliberately stops short of this, decrypting only enough to verify
+  // the passphrase. Rendering afterward is outside this try/catch.
+  let plaintext;
   try {
     const note = await NotesStore.get(id);
     if (!note || !note.encrypted) throw new Error('NOT_FOUND');
-    await Cipher.decryptRecord(passphrase, note.encrypted); // throws WRONG_PASSPHRASE on mismatch; result discarded — we already hold the unlocked plaintext, this call is purely a re-verification gate
+    const result = await Cipher.decryptRecord(passphrase, note.encrypted);
+    plaintext = result.plaintext;
   } catch (e) {
     if (e.message === 'WRONG_PASSPHRASE') {
       statusEl.style.color = 'var(--red)';
@@ -866,6 +893,10 @@ async function submitCipherIlluminate() {
   }
   confirmBtn.disabled = false;
 
+  // Populate the plaintext NOW — this is the moment full decryption
+  // happens, deferred from unlock specifically so it only occurs when
+  // the user has explicitly chosen the higher-exposure editing mode.
+  if (App.unlockedCiphers[id]) App.unlockedCiphers[id].plaintext = plaintext;
   illuminateCipher(id);
   closeModal('modal-cipher-illuminate');
 }
@@ -881,10 +912,31 @@ function illuminateCipher(id) {
 // types. Always safe to call even if the given id isn't illuminated
 // (e.g. the idle timer firing after the user already clicked Obscure
 // manually) — it's idempotent.
-function obscureCipher(id) {
+async function obscureCipher(id) {
   const i = App.illuminatedCipherIds.indexOf(id);
   if (i !== -1) App.illuminatedCipherIds.splice(i, 1);
   clearIlluminateIdleTimer();
+
+  // Flush any pending debounced save BEFORE discarding plaintext — and
+  // AWAIT it. saveActiveCipher itself writes the textarea's current
+  // value into unlocked.plaintext as part of saving; if that write
+  // happens AFTER this function's own plaintext = null below (which it
+  // would, if this were fire-and-forget instead of awaited), the save's
+  // own assignment silently overwrites the discard right back to the
+  // real text moments later. Awaiting guarantees strict ordering: save
+  // completes fully, including its own plaintext write, THEN we null it.
+  if (saveCipherTimer) {
+    clearTimeout(saveCipherTimer);
+    saveCipherTimer = null;
+    if (App.activeNoteId === id) await saveActiveCipher();
+  }
+
+  // Discard the plaintext — this is the other half of "only decrypted
+  // while illuminated." Once obscured, the document goes back to
+  // genuinely encrypted-at-rest-in-memory; only the line under the
+  // cursor in the read-only viewer gets decrypted again, on demand.
+  if (App.unlockedCiphers[id]) App.unlockedCiphers[id].plaintext = null;
+
   if (App.activeNoteId === id) {
     renderActiveNote();
     renderTabs();
