@@ -31,6 +31,7 @@
   <div class="topbar-actions">
     <span id="sync-indicator" class="sync-indicator" style="display:none;" title="Unsynced changes">●</span>
     <button class="link-btn" id="terminology-link-btn" title="What do Corpus, Scroll, and Remnant mean?">Terminology</button>
+    <button class="btn btn-sm btn-ghost scratchpad-toggle-btn" id="scratchpad-toggle-btn" title="Scratchpad">Scratchpad</button>
     <button class="btn btn-sm btn-outline" id="save-session-btn" style="display:none;">Save Session</button>
     <button class="btn btn-sm btn-ghost" id="open-settings-btn">Settings</button>
   </div>
@@ -94,11 +95,20 @@
     </div>
   </section>
 
-  <!-- Scratchpad column — always present, never part of the tab/notes list -->
-  <aside class="scratchpad-column">
-    <div class="scratchpad-header">Scratchpad</div>
+  <!-- Scratchpad column — always present, never part of the tab/notes list.
+       On desktop/wide screens (≥640px) this sits inline as a side column.
+       Below 640px it becomes a pop-out drawer (see .scratchpad-column
+       mobile rules in styles.css and the toggle button in the topbar) so
+       the notes column gets full vertical space on mobile instead of
+       splitting it with an always-visible scratchpad. -->
+  <aside class="scratchpad-column" id="scratchpad-column">
+    <div class="scratchpad-header">
+      Scratchpad
+      <button class="scratchpad-close-btn" id="scratchpad-close-btn" aria-label="Close scratchpad">&times;</button>
+    </div>
     <textarea class="scratchpad-input" id="scratchpad-input" placeholder="Quick thoughts…"></textarea>
   </aside>
+  <div class="scratchpad-scrim" id="scratchpad-scrim"></div>
 
 </main>
 
