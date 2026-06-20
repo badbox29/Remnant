@@ -2373,48 +2373,17 @@ function navigateCipherKeyboardRow(id, newIndex) {
   if (prevIdx >= 0 && rows[prevIdx]) deactivateRow(rows[prevIdx]);
   rows.forEach((row, i) => row.classList.toggle('adjacent', i === clamped - 1 || i === clamped + 1));
   activateRow(id, rows[clamped], clamped, myToken);
-  scrollRowIntoComfortableView(viewerEl, rows[clamped]);
-}
-
-// scrollRowIntoComfortableView — brings the given row into view with a
-// margin, not just the bare minimum scrollIntoView({block:'nearest'})
-// would do. The bare-minimum version only scrolls when a row is FULLY
-// out of view, and stops the instant any sliver of it is visible — which
-// reads as "nothing happened" when repeatedly pressing Down near the
-// bottom of the viewport, since each next row only needs a tiny scroll
-// to technically qualify as "visible." This keeps a comfortable margin
-// (roughly one row-height) between the active row and the viewport's
-// edges, so continuous arrow-key navigation feels like steadily
-// advancing through the document — the same feel as Notepad/Word/a PDF
-// viewer's cursor-follows-scroll behavior — rather than stalling right
-// at the edge.
-function scrollRowIntoComfortableView(viewerEl, rowEl) {
-  const viewerRect = viewerEl.getBoundingClientRect();
-  const rowRect    = rowEl.getBoundingClientRect();
-  const margin     = rowRect.height * 1.5;
-
-  // These two checks must be mutually exclusive for any given row, or a
-  // row sitting near one edge while the OTHER edge's margin band also
-  // technically overlaps it (e.g. early rows in a freshly-opened,
-  // unscrolled viewer — they're within margin of the top by definition,
-  // before any scrolling has ever happened) can trigger the WRONG
-  // correction. Confirmed bug: pressing Down repeatedly near the start
-  // kept yanking scrollTop backward toward 0 via the top-correction
-  // branch, even while navigating forward, because early rows satisfied
-  // that branch's condition before the bottom-correction branch ever
-  // got a chance to matter. Fix: only ever scroll DOWN when the row's
-  // bottom edge has actually passed beyond the viewport's visible
-  // bottom margin, and only ever scroll UP when the row's top edge has
-  // actually passed above the viewport's visible top margin — checked
-  // as genuine overflow past the edge, not "within N pixels of it."
-  const overflowBottom = rowRect.bottom - (viewerRect.bottom - margin);
-  const overflowTop    = (viewerRect.top + margin) - rowRect.top;
-
-  if (overflowBottom > 0 && rowRect.bottom > viewerRect.bottom) {
-    viewerEl.scrollTop += overflowBottom;
-  } else if (overflowTop > 0 && rowRect.top < viewerRect.top) {
-    viewerEl.scrollTop -= overflowTop;
-  }
+  // Native scrollIntoView, not custom scroll-distance math. Plain
+  // Remnants get correct, natural-feeling keyboard scrolling for free
+  // from the browser's own textarea behavior — no custom code at all.
+  // An earlier custom margin/overflow formula here was the actual
+  // source of a real bug (it kept yanking scrollTop backward toward 0
+  // for rows that were already comfortably visible near the top of an
+  // unscrolled viewer, looking like navigation was looping back to the
+  // start instead of advancing). Letting the browser handle this the
+  // same way it already handles it correctly for Remnants removes that
+  // whole class of self-inflicted bug.
+  rows[clamped].scrollIntoView({ block: 'nearest' });
 }
 
 function handleCipherKeyboardNav(e) {
