@@ -1230,14 +1230,15 @@ function setChapterExpanded(id, expanded) {
 }
 
 document.getElementById('nav-toggle-btn')?.addEventListener('click', () => {
-  // Checks isPinnedActive() (preference AND width), not isPinned() (the
-  // stored preference alone). A desktop window resized down below
-  // NAV_PIN_MIN_WIDTH already shows the panel as pop-out (isPinnedActive
-  // correctly says false), but the user's stored preference can still be
-  // "pinned" from when the window was wider — checking the bare
-  // preference here would silently no-op the hamburger at exactly the
-  // width where it's the ONLY way to reach the panel.
-  if (isPinnedActive()) return;
+  // The hamburger always toggles panel visibility, regardless of pinned
+  // state. Pinning controls HOW the panel behaves when open (claims
+  // layout space vs. overlays as a pop-out) — it was never meant to make
+  // the panel impossible to temporarily hide. The earlier guard here
+  // ("if pinned, do nothing") meant pinned mode had NO way to hide the
+  // panel at all short of unpinning — a real usability gap, not a
+  // deliberate restriction, since panelOpen and pinned are already
+  // independent stored fields (see setPinned/isPanelOpen) and nothing
+  // re-forces panelOpen back to match pinned except setPinned itself.
   setPanelOpen(!isPanelOpen());
 });
 document.getElementById('nav-panel-scrim')?.addEventListener('click', () => setPanelOpen(false));
