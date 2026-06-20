@@ -94,6 +94,12 @@ function defaultData() {
     // modal's no-recovery warning. Fine to sync via KV like any other UI
     // preference — it's just a dismissal flag, holds no secret of any kind.
     cipherWarningDismissed: false,
+    // Disguise text style for the spotlight-reveal editor: 'lorem' (looks
+    // like real prose — better disguise to a glancing onlooker, but can
+    // be mildly distracting to the user's own eye since it's almost-
+    // readable) or 'noise' (abstract character clusters — quieter to the
+    // user, slightly weaker disguise). User-selectable in settings.
+    cipherDisguiseMode: 'lorem',
   };
 }
 
@@ -407,6 +413,12 @@ async function closeTab(id) {
   } else {
     App.data.tabState.openIds = App.data.tabState.openIds.filter(x => x !== id);
   }
+  // The body field must repopulate fresh if this same id ever becomes
+  // active again later (e.g. a Cipher reopened via session-cache) —
+  // without this, a stale match in renderActiveNote's "already showing
+  // this id, skip repopulating" check could leave the body showing
+  // nothing/wrong content after a close+reopen.
+  if (App._bodyShowingNoteId === id) App._bodyShowingNoteId = null;
 
   if (App.activeNoteId === id) {
     // Fall back to whichever tab list still has something open —
@@ -602,7 +614,7 @@ async function openCipherInTab(id) {
   if (cachedKey) {
     const note = await NotesStore.get(id);
     try {
-      const plaintext = await Cipher.decryptWithKey(cachedKey, note.encrypted);
+      const plaintext = await Cipher.decryptAllLinesWithKey(cachedKey, note.encrypted);
       App.unlockedCiphers[id] = { plaintext, key: cachedKey };
       setActiveNote(id);
       renderTabs();
@@ -720,8 +732,12 @@ async function saveActiveCipher() {
     return bytes;
   })();
 
+  // Re-encrypts the ENTIRE line array together on every save (not a diff
+  // of just the changed lines) — see cipher.js header for why this
+  // tradeoff was chosen deliberately over per-line diffing.
+  const newLines = newPlaintext.split('\n');
   note.title     = newTitle;
-  note.encrypted = await Cipher.encryptWithKey(unlocked.key, newPlaintext, saltBytes, note.encrypted.kdfParams);
+  note.encrypted = await Cipher.encryptLinesWithKey(unlocked.key, newLines, saltBytes, note.encrypted.kdfParams);
   note.updatedAt = Date.now();
   await NotesStore.set(id, note);
 
@@ -738,6 +754,77 @@ let saveCipherTimer = null;
 function scheduleSaveActiveCipher() {
   clearTimeout(saveCipherTimer);
   saveCipherTimer = setTimeout(saveActiveCipher, 400);
+}
+
+// ─── Disguise text generation ──────────────────────────────────────
+//
+// Generates fake text that occupies roughly the same visual footprint
+// (word count, word lengths) as a real line, so the spotlight-reveal
+// editor's masked state reads as "a person is reading a normal page,"
+// not "this is obviously a redacted block." Two styles, user-selectable
+// in settings (App.data.cipherDisguiseMode):
+//   'lorem' — classic filler Latin, looks like real prose at a glance.
+//             Better disguise to an onlooker; can be mildly distracting
+//             to the user's own eye since it's almost-readable and the
+//             eye keeps trying to parse it while scanning for the
+//             revealed line.
+//   'noise' — abstract character clusters mimicking word-length/
+//             punctuation rhythm without forming anything pronounceable.
+//             Quieter to the user, slightly weaker disguise.
+// Disguise text is regenerated fresh each time a Cipher is unlocked
+// (not stored anywhere) — it only ever needs to exist for the current
+// render, and regenerating is cheap.
+
+const LOREM_WORDS = [
+  'lorem','ipsum','dolor','sit','amet','consectetur','adipiscing','elit',
+  'sed','do','eiusmod','tempor','incididunt','ut','labore','et','dolore',
+  'magna','aliqua','enim','ad','minim','veniam','quis','nostrud','exercitation',
+  'ullamco','laboris','nisi','aliquip','ex','ea','commodo','consequat',
+  'duis','aute','irure','in','reprehenderit','voluptate','velit','esse',
+  'cillum','fugiat','nulla','pariatur','excepteur','sint','occaecat','cupidatat',
+  'non','proident','sunt','culpa','qui','officia','deserunt','mollit','anim','id','est','laborum',
+];
+
+function randomLoremWord() {
+  return LOREM_WORDS[Math.floor(Math.random() * LOREM_WORDS.length)];
+}
+
+// noiseWord(length) — a pronounceable-ish but meaningless cluster of
+// letters, roughly the requested length. Alternates consonant/vowel
+// groups so it has SOME rhythm (avoids looking like literal hex/base64
+// noise, which would itself read as "this is encrypted" at a glance).
+const NOISE_CONSONANTS = 'bcdfghjklmnpqrstvwxz';
+const NOISE_VOWELS = 'aeiouy';
+function noiseWord(length) {
+  let out = '';
+  let useConsonant = Math.random() < 0.5;
+  while (out.length < length) {
+    const pool = useConsonant ? NOISE_CONSONANTS : NOISE_VOWELS;
+    out += pool[Math.floor(Math.random() * pool.length)];
+    useConsonant = !useConsonant;
+  }
+  return out.slice(0, length);
+}
+
+// disguiseLine(realLine) — generates one disguise line matching realLine's
+// approximate word count and word lengths, so the overall shape (and
+// therefore the textarea's line wrapping / paragraph silhouette) stays
+// consistent between the real and disguised render.
+function disguiseLine(realLine) {
+  if (!realLine) return '';
+  const mode = App.data.cipherDisguiseMode || 'lorem';
+  const words = realLine.split(/\s+/).filter(Boolean);
+  if (!words.length) return '';
+  const disguiseWords = words.map(w => {
+    if (mode === 'noise') return noiseWord(Math.max(2, w.length));
+    return randomLoremWord();
+  });
+  return disguiseWords.join(' ');
+}
+
+// disguiseLines(realLines) — convenience wrapper for a whole array.
+function disguiseLines(realLines) {
+  return realLines.map(disguiseLine);
 }
 
 // ─── Illuminate / Obscure ───────────────────────────────────────────
@@ -1806,24 +1893,33 @@ async function performBookDrop(drag, target, zone) {
 }
 
 // updateCipherControlsVisibility(id) — shows/hides the Illuminate button,
-// Obscure button, illuminated border, and warning banner based on
-// whether the active tab is a Cipher at all, and if so, whether it's
-// currently illuminated. Called from every renderActiveNote() exit path
-// so these stay correct regardless of which branch (no tab / Cipher /
-// plain Remnant) is active.
+// Obscure button, illuminated border, warning banner, and the disguise
+// overlay itself, based on whether the active tab is a Cipher at all,
+// and if so, whether it's currently illuminated. Called from every
+// renderActiveNote() exit path so these stay correct regardless of which
+// branch (no tab / Cipher / plain Remnant) is active.
 function updateCipherControlsVisibility(id) {
-  const editorEl     = document.getElementById('note-editor');
+  const editorEl      = document.getElementById('note-editor');
   const illuminateBtn = document.getElementById('cipher-illuminate-btn');
-  const obscureBtn    = document.getElementById('cipher-obscure-btn');
-  const bannerEl      = document.getElementById('cipher-illuminate-banner');
+  const obscureBtn     = document.getElementById('cipher-obscure-btn');
+  const bannerEl       = document.getElementById('cipher-illuminate-banner');
+  const overlayEl      = document.getElementById('cipher-disguise-overlay');
+  const bodyEl         = document.getElementById('note-body-input');
 
   const isCipher = id && isCipherNote(App.noteSummaries[id]);
   const illuminated = isCipher && isIlluminated(id);
+  // Spotlight masking is active for an unlocked, non-illuminated Cipher.
+  // Illuminate suspends it entirely — full plaintext, no overlay, no
+  // masking — which is exactly Illuminate's whole purpose.
+  const masked = isCipher && !illuminated && !!App.unlockedCiphers[id];
 
   illuminateBtn.style.display = (isCipher && !illuminated) ? '' : 'none';
   obscureBtn.style.display    = illuminated ? '' : 'none';
   bannerEl.style.display      = illuminated ? '' : 'none';
   editorEl.classList.toggle('illuminated', !!illuminated);
+
+  overlayEl.style.display = masked ? '' : 'none';
+  bodyEl.classList.toggle('cipher-masked', masked);
 }
 
 function renderActiveNote() {
@@ -1840,6 +1936,7 @@ function renderActiveNote() {
     titleEl.disabled = true;
     bodyEl.disabled  = true;
     bodyEl.placeholder = 'Open a remnant, or click "+" to start a new one…';
+    App._bodyShowingNoteId = null;
     return;
   }
 
@@ -1854,20 +1951,29 @@ function renderActiveNote() {
       bodyEl.value = '';
       bodyEl.disabled = true;
       bodyEl.placeholder = 'Locked.';
+      App._bodyShowingNoteId = null;
       return;
     }
     titleEl.disabled = false;
     bodyEl.disabled  = false;
-    // Stage 3 will replace this with the spotlight-reveal disguise when
-    // NOT illuminated. For now (stage 2 + Illuminate added on top): both
-    // the default state and the illuminated state show plain decrypted
-    // text identically — the visual difference stage 3 introduces is the
-    // disguise/masking when illuminate is OFF, not anything about this
-    // branch itself. The Illuminate/Obscure controls and the always-clear-
-    // on-close behavior are already fully real and tested regardless.
     bodyEl.placeholder = 'Start writing…';
     titleEl.value = summary.title || '';
-    bodyEl.value  = unlocked.plaintext || '';
+    // Only repopulate the body from unlocked.plaintext when actually
+    // SWITCHING to this Cipher (tracked via App._bodyShowingNoteId) —
+    // not on every renderActiveNote() call. illuminateCipher/obscureCipher
+    // both call renderActiveNote() purely to toggle the masking
+    // presentation while the SAME Cipher stays active; re-populating from
+    // unlocked.plaintext on those calls would clobber whatever's been
+    // typed since the last debounced save (unlocked.plaintext is only
+    // updated when saveActiveCipher actually runs, on a 400ms delay).
+    if (App._bodyShowingNoteId !== id) {
+      bodyEl.value = unlocked.plaintext || '';
+      App._bodyShowingNoteId = id;
+    }
+    // Rebuild the disguise overlay from the current body content. No-ops
+    // harmlessly if this Cipher is illuminated (overlay is hidden by
+    // updateCipherControlsVisibility above).
+    rebuildCipherOverlay(id);
     return;
   }
 
@@ -1878,21 +1984,152 @@ function renderActiveNote() {
     titleEl.disabled = true;
     bodyEl.disabled  = true;
     bodyEl.placeholder = 'Open a remnant, or click "+" to start a new one…';
+    App._bodyShowingNoteId = null;
     return;
   }
   titleEl.disabled = false;
   bodyEl.disabled  = false;
   bodyEl.placeholder = 'Start writing…';
   titleEl.value = note.title || '';
-  bodyEl.value  = note.content || '';
+  if (App._bodyShowingNoteId !== id) {
+    bodyEl.value = note.content || '';
+    App._bodyShowingNoteId = id;
+  }
 }
+
+// ─── Cipher spotlight overlay: disguise generation + cursor tracking ──
+//
+// The overlay is a div sitting BEHIND the real textarea (see CSS —
+// .note-body-input gets color:transparent + caret-color:transparent
+// when masked, so the eye sees the overlay instead). The textarea is
+// still the thing that actually receives keystrokes/selection/cursor —
+// nothing about editing changes; only what's VISUALLY rendered does.
+//
+// Each line in the overlay is two spans (disguise + real), built by
+// rebuildCipherOverlay() from the textarea's CURRENT value — not a
+// decrypt-from-disk and not the stale snapshot from unlock time, since
+// the live edit buffer is the actual source of truth while a Cipher tab
+// is open (see app.js's broader notes on devtools-scope for why this is
+// the right boundary: once unlocked, the full plaintext already has to
+// exist in the textarea for normal editing to work at all).
+//
+// Which line is "revealed" (real text shown instead of disguise) is
+// driven by pointer position — see updateSpotlightLine below — and
+// re-evaluated on every mousemove/touchmove over the body.
+
+let cipherOverlayLineCount = 0; // tracks how many <div> lines currently exist, so rebuilds can diff cheaply rather than always tearing down and rebuilding every span on every keystroke
+
+function rebuildCipherOverlay(id) {
+  const overlayEl = document.getElementById('cipher-disguise-overlay');
+  const bodyEl    = document.getElementById('note-body-input');
+  if (overlayEl.style.display === 'none') return; // illuminated or not a masked Cipher — nothing to build
+
+  const realLines = bodyEl.value.split('\n');
+  overlayEl.innerHTML = '';
+  realLines.forEach((realLine, i) => {
+    const lineEl = document.createElement('div');
+    lineEl.className = 'cipher-overlay-line';
+    lineEl.dataset.lineIndex = i;
+
+    const disguiseEl = document.createElement('span');
+    disguiseEl.className = 'cipher-overlay-line-disguise';
+    disguiseEl.textContent = disguiseLine(realLine);
+
+    const realEl = document.createElement('span');
+    realEl.className = 'cipher-overlay-line-real';
+    realEl.textContent = realLine;
+
+    lineEl.appendChild(disguiseEl);
+    lineEl.appendChild(realEl);
+    overlayEl.appendChild(lineEl);
+  });
+  cipherOverlayLineCount = realLines.length;
+
+  syncSpotlightToPointer(id, App._lastPointerY);
+}
+
+// lineHeightPx() — reads the actual computed line-height of the body
+// textarea, so spotlight math stays correct even if the font size or
+// line-height is ever changed in CSS without a matching code change here.
+function lineHeightPx() {
+  const bodyEl = document.getElementById('note-body-input');
+  const lh = parseFloat(getComputedStyle(bodyEl).lineHeight);
+  return Number.isFinite(lh) ? lh : 24;
+}
+
+// syncSpotlightToPointer(id, clientY) — given a Y coordinate (already
+// adjusted for the "show it above your finger on mobile" offset by the
+// caller where relevant), compute which line index that falls on,
+// accounting for the textarea's scroll position, and mark exactly that
+// line as revealed in the overlay. All other lines are un-revealed.
+function syncSpotlightToPointer(id, clientY) {
+  if (clientY == null) return;
+  const bodyEl = document.getElementById('note-body-input');
+  const overlayEl = document.getElementById('cipher-disguise-overlay');
+  if (overlayEl.style.display === 'none') return;
+
+  const rect = bodyEl.getBoundingClientRect();
+  const relativeY = clientY - rect.top + bodyEl.scrollTop;
+  const lh = lineHeightPx();
+  const lineIndex = Math.max(0, Math.min(cipherOverlayLineCount - 1, Math.floor(relativeY / lh)));
+
+  const lines = overlayEl.querySelectorAll('.cipher-overlay-line');
+  lines.forEach((lineEl, i) => {
+    lineEl.classList.toggle('revealed', i === lineIndex);
+  });
+}
+
+// Mobile touch offset: per the original design requirement, the reveal
+// window sits ABOVE the touch point on mobile, not under it — a finger
+// on the glass would otherwise cover the one area that's actually
+// legible. This is a fixed pixel offset rather than a percentage, so it
+// stays predictable regardless of zoom/viewport size.
+const TOUCH_REVEAL_OFFSET_PX = 48;
+
+function attachCipherSpotlightTracking() {
+  const bodyEl = document.getElementById('note-body-input');
+  if (!bodyEl) return;
+
+  bodyEl.addEventListener('mousemove', (e) => {
+    App._lastPointerY = e.clientY;
+    if (isCipherNote(App.noteSummaries[App.activeNoteId])) {
+      syncSpotlightToPointer(App.activeNoteId, e.clientY);
+    }
+  });
+
+  bodyEl.addEventListener('touchmove', (e) => {
+    if (!e.touches?.length) return;
+    const y = e.touches[0].clientY - TOUCH_REVEAL_OFFSET_PX;
+    App._lastPointerY = y;
+    if (isCipherNote(App.noteSummaries[App.activeNoteId])) {
+      syncSpotlightToPointer(App.activeNoteId, y);
+    }
+  }, { passive: true });
+
+  // Keep the overlay in sync with manual scrolling (mouse wheel, etc) —
+  // without this, scrolling the textarea would leave the spotlight
+  // pointing at stale screen coordinates relative to the now-moved text.
+  bodyEl.addEventListener('scroll', () => {
+    if (isCipherNote(App.noteSummaries[App.activeNoteId])) {
+      syncSpotlightToPointer(App.activeNoteId, App._lastPointerY);
+    }
+  });
+}
+attachCipherSpotlightTracking();
 
 function scheduleSaveActive() {
   if (isCipherNote(App.noteSummaries[App.activeNoteId])) scheduleSaveActiveCipher();
   else scheduleSaveActiveNote();
 }
 document.getElementById('note-title-input')?.addEventListener('input', scheduleSaveActive);
-document.getElementById('note-body-input')?.addEventListener('input', scheduleSaveActive);
+document.getElementById('note-body-input')?.addEventListener('input', () => {
+  scheduleSaveActive();
+  // Rebuild the overlay immediately on every keystroke too (not just on
+  // tab-switch) — disguise text needs to track the real content's shape
+  // as it changes, and a newly-typed line needs its own disguise/real
+  // pair to exist at all before the spotlight can reveal it.
+  if (isCipherNote(App.noteSummaries[App.activeNoteId])) rebuildCipherOverlay(App.activeNoteId);
+});
 document.getElementById('scratchpad-input')?.addEventListener('input', scheduleSaveScratchpad);
 
 async function renderAll() {

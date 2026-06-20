@@ -6,7 +6,7 @@
  * the actual cryptography — key derivation and AES-GCM encrypt/decrypt.
  * Nothing here knows about the UI, the nav tree, or the spotlight-reveal
  * rendering; it just turns (passphrase, plaintext) into a storable
- * ciphertext record, and turns (passphrase, record) back into plaintext.
+ * encrypted record, and turns (passphrase, record) back into plaintext.
  *
  * ── Security model — read this before touching anything below ──────
  *
@@ -14,7 +14,7 @@
  *   localStorage, not in the KV sync payload, not even hashed for a
  *   "remember me" feature. The only thing ever persisted is the salt
  *   (not secret — it just needs to be known to re-derive the same key),
- *   the KDF parameters, the IV, and the ciphertext itself.
+ *   the KDF parameters, and the per-line IVs/ciphertexts.
  * - There is NO recovery path. A forgotten passphrase means permanently
  *   lost content. This is load-bearing, not a missing feature — any
  *   "reset" mechanism that could recover the plaintext would mean the
@@ -33,44 +33,61 @@
  *   the signal needed to tell a user "wrong passphrase" with confidence.
  *   Native means no additional library/trust surface for this half.
  *
+ * ── PER-LINE encryption (this is the load-bearing design choice) ───────
+ * A Cipher's body is encrypted ONE LINE AT A TIME, not as a single blob.
+ * Every line shares the same derived key but gets its OWN fresh random
+ * IV — reusing a key across many independently-IV'd ciphertexts is the
+ * normal, correct use of AES-GCM (nonce-per-message), not a special case.
+ *
+ * Why: this is what lets the spotlight-reveal UI (app.js) decrypt only
+ * the line currently under the cursor, on demand, and let every other
+ * line sit as genuine ciphertext bytes the rest of the time — not just
+ * a substring of a string that's already fully decrypted in memory. A
+ * memory snapshot taken at a random moment shows nearly the whole
+ * document as ciphertext, with only the active line's plaintext ever
+ * existing — a meaningfully smaller exposure footprint than decrypting
+ * the whole body once at unlock.
+ *
+ * Saving an edit re-encrypts the ENTIRE line array together (not a diff
+ * of just the changed lines) — simpler, and the per-line-at-rest
+ * property is what matters between saves; diffing buys little extra
+ * for real added complexity (line-shift bugs on insert/delete).
+ *
  * ── Cipher record shape (what gets stored in IndexedDB / synced to KV) ──
  *   {
- *     salt:       base64 string, 16 random bytes, unique per Cipher
- *     iv:         base64 string, 12 random bytes, unique per ENCRYPTION
- *                 (regenerated every time content is re-encrypted, even
- *                 for the same Cipher — reusing an IV with the same key
- *                 is the one cardinal sin of AES-GCM, so every save gets
- *                 a fresh one)
- *     ciphertext: base64 string, the encrypted content
- *     kdfParams:  { memorySize, iterations, parallelism } — not secret,
- *                 just need to be known to re-derive the same key later
+ *     salt:      base64 string, 16 random bytes, unique per Cipher,
+ *                permanent for the Cipher's lifetime
+ *     kdfParams: { memorySize, iterations, parallelism, hashLength } —
+ *                not secret, just need to be known to re-derive the
+ *                exact same key later (see deriveKey's comment on why
+ *                THIS RECORD'S OWN stored params must always be used,
+ *                never the live ARGON2_PARAMS constant)
+ *     lines: [
+ *       { iv: base64 string (12 bytes), ciphertext: base64 string },
+ *       ...  one entry per line of the plaintext body, in order
+ *     ]
  *   }
  *
  * API (all async):
- *   Cipher.deriveKey(passphrase, salt)        → CryptoKey
- *   Cipher.createRecord(passphrase, plaintext) → record (generates a
- *                                                 fresh salt)
- *   Cipher.decryptRecord(passphrase, record)   → { plaintext, key }
- *                                                 throws on wrong passphrase
- *   Cipher.decryptWithKey(key, record)         → plaintext
- *                                                 (reuse a held key —
- *                                                 e.g. session cache, or
- *                                                 re-encrypting after an
- *                                                 edit — without re-running
- *                                                 Argon2)
- *   Cipher.encryptWithKey(key, plaintext, salt, kdfParams) → record
- *                                                 (re-encrypt with a
- *                                                 fresh IV, same key/salt)
+ *   Cipher.deriveKey(passphrase, salt, kdfParams) → CryptoKey
+ *   Cipher.createRecord(passphrase, plaintext)    → { record, key }
+ *                                                    (plaintext is split
+ *                                                    on \n; generates a
+ *                                                    fresh salt)
+ *   Cipher.decryptRecord(passphrase, record)      → { plaintext, key }
+ *                                                    (joins lines with \n;
+ *                                                    throws WRONG_PASSPHRASE)
+ *   Cipher.decryptLineWithKey(key, lineRecord)    → string
+ *                                                    (decrypt ONE line —
+ *                                                    this is what the
+ *                                                    spotlight reveal
+ *                                                    calls on demand)
+ *   Cipher.encryptLinesWithKey(key, lines[], salt, kdfParams) → record
+ *                                                    (re-encrypt the
+ *                                                    whole line array,
+ *                                                    fresh IV per line)
  */
 const Cipher = (() => {
-  // Argon2id parameters. OWASP's 2026 guidance for security-conscious
-  // password storage sits around 64 MiB / t=3 / p=1 up to 128 MiB / t=3-5
-  // (their bare minimum baseline is lighter: 19 MiB / t=2, intended for a
-  // one-time server-side login check). This runs client-side and on every
-  // unlock rather than once at login, so it's deliberately calibrated a
-  // bit below the heaviest end of that range — security-conscious but not
-  // punishing on modest hardware. Adjust here only; nothing else hardcodes
-  // these values.
   const ARGON2_PARAMS = {
     memorySize:  65536, // 64 MiB, in KiB (hash-wasm's unit)
     iterations:  3,
@@ -79,7 +96,6 @@ const Cipher = (() => {
   };
 
   const AES_ALGO = 'AES-GCM';
-  const AES_KEY_LENGTH = 256;
   const SALT_BYTES = 16;
   const IV_BYTES   = 12; // standard/recommended IV length for AES-GCM
 
@@ -106,22 +122,6 @@ const Cipher = (() => {
 
   // ── Key derivation (Argon2id) ───────────────────────────────────────
 
-  // deriveKey(passphrase, saltBytes, kdfParams) — runs Argon2id and imports
-  // the resulting bytes as a non-extractable AES-GCM CryptoKey.
-  // kdfParams defaults to the current ARGON2_PARAMS, but callers unlocking
-  // an EXISTING Cipher must pass that Cipher's own stored kdfParams instead
-  // — see decryptRecord below. If ARGON2_PARAMS is ever tuned in a future
-  // app update, re-deriving an old Cipher's key with the NEW defaults
-  // instead of the params it was actually created with would silently
-  // produce a different key, and the correct passphrase would stop
-  // working. Pinning each Cipher to its own stored params is what keeps
-  // the no-recovery promise honest across future tuning changes.
-  // non-extractable import is deliberate: once derived, the raw key bytes
-  // can never be read back out of the CryptoKey object by any caller,
-  // including this module itself. The key can only be USED (encrypt/
-  // decrypt), never exported — one more guard against the key material
-  // leaking out somewhere it shouldn't (an accidental console.log, a
-  // bug elsewhere in the app, etc).
   async function deriveKey(passphrase, saltBytes, kdfParams) {
     if (typeof window.hashwasm?.argon2id !== 'function') {
       throw new Error('Argon2 library not loaded — check vendor/argon2.umd.min.js is included before cipher.js');
@@ -140,84 +140,75 @@ const Cipher = (() => {
       'raw',
       derivedBytes,
       { name: AES_ALGO },
-      false, // extractable: false — see comment above
+      false, // extractable: false — non-extractable import means the raw
+             // key bytes can never be read back out of the CryptoKey
+             // object by any caller, including this module itself
       ['encrypt', 'decrypt']
     );
   }
 
-  // ── Encrypt / decrypt with an already-derived key ──────────────────
+  // ── Single-line encrypt / decrypt — the core primitive ─────────────
+  // Both are thin wrappers around one crypto.subtle call each. Nothing
+  // about "per-line" requires new cryptography — it's the same AES-GCM
+  // operation already used for the whole-blob approach, just called once
+  // per line instead of once per Cipher.
 
-  async function encryptWithKey(key, plaintext, saltBytes, kdfParams) {
-    const iv = randomBytes(IV_BYTES); // fresh IV every encryption — never reused with the same key
+  async function encryptLine(key, lineText) {
+    const iv = randomBytes(IV_BYTES); // fresh IV every line, every encryption — never reused with the same key
     const enc = new TextEncoder();
     const ciphertextBuf = await crypto.subtle.encrypt(
       { name: AES_ALGO, iv },
       key,
-      enc.encode(plaintext)
+      enc.encode(lineText)
     );
     return {
-      salt: bytesToBase64(saltBytes),
       iv: bytesToBase64(iv),
       ciphertext: bytesToBase64(new Uint8Array(ciphertextBuf)),
-      // kdfParams (including hashLength) must be persisted in full — every
-      // field is needed to re-derive the exact same key later. If
-      // hashLength ever differs from what was used originally (e.g. after
-      // a future app update changes ARGON2_PARAMS), re-deriving with the
-      // NEW default instead of the value stored at creation time would
-      // silently produce a different key and the correct passphrase would
-      // stop working. Falling back to the current ARGON2_PARAMS only
-      // happens here when the caller didn't supply params at all (e.g. a
-      // brand-new Cipher being created right now).
-      kdfParams: kdfParams || { ...ARGON2_PARAMS },
     };
   }
 
-  async function decryptWithKey(key, record) {
-    const iv = base64ToBytes(record.iv);
-    const ciphertextBytes = base64ToBytes(record.ciphertext);
+  async function decryptLineWithKey(key, lineRecord) {
+    const iv = base64ToBytes(lineRecord.iv);
+    const ciphertextBytes = base64ToBytes(lineRecord.ciphertext);
     let plaintextBuf;
     try {
       plaintextBuf = await crypto.subtle.decrypt({ name: AES_ALGO, iv }, key, ciphertextBytes);
     } catch (e) {
-      // AES-GCM's authentication tag check failed — this is the expected,
-      // clean signal for "wrong key" (and therefore "wrong passphrase").
-      // Re-throw a clearly-labeled error so callers can distinguish this
-      // from an unexpected/internal failure.
       throw new Error('WRONG_PASSPHRASE');
     }
     return new TextDecoder().decode(plaintextBuf);
   }
 
+  // ── Whole-array encrypt / decrypt — used for save and for unlock ───
+
+  async function encryptLinesWithKey(key, lines, saltBytes, kdfParams) {
+    const encryptedLines = await Promise.all(lines.map(line => encryptLine(key, line)));
+    return {
+      salt: bytesToBase64(saltBytes),
+      kdfParams: kdfParams || { ...ARGON2_PARAMS },
+      lines: encryptedLines,
+    };
+  }
+
+  async function decryptAllLinesWithKey(key, record) {
+    const lines = await Promise.all(record.lines.map(line => decryptLineWithKey(key, line)));
+    return lines.join('\n');
+  }
+
   // ── Full create / unlock flows (passphrase in, derives fresh each time) ──
 
-  // createRecord(passphrase, plaintext) — used when a Cipher is first
-  // created, or whenever the passphrase itself is being set/changed.
-  // Generates a fresh salt (this Cipher's permanent salt going forward)
-  // and a fresh IV, derives a key via Argon2id, encrypts, and returns
-  // everything needed to store the Cipher. The derived CryptoKey is
-  // also returned so the caller can immediately use it for the current
-  // editing session without re-deriving.
   async function createRecord(passphrase, plaintext) {
     const saltBytes = randomBytes(SALT_BYTES);
     const key = await deriveKey(passphrase, saltBytes);
-    const record = await encryptWithKey(key, plaintext, saltBytes, { ...ARGON2_PARAMS });
+    const lines = plaintext.split('\n');
+    const record = await encryptLinesWithKey(key, lines, saltBytes, { ...ARGON2_PARAMS });
     return { record, key };
   }
 
-  // decryptRecord(passphrase, record) — used when unlocking an existing
-  // Cipher. Re-derives the key from the passphrase using THIS RECORD'S
-  // OWN stored salt and kdfParams (not the live ARGON2_PARAMS constant —
-  // see deriveKey's comment for why that distinction matters), then
-  // attempts decryption. Throws WRONG_PASSPHRASE (via decryptWithKey) if
-  // the passphrase doesn't match. Returns both the plaintext AND the
-  // derived key, so the caller can hold the key for the rest of the
-  // editing session (re-encrypting on edits, or for the optional
-  // "remember for this session" cache) without re-running Argon2id again
-  // for the same Cipher in the same session.
   async function decryptRecord(passphrase, record) {
     const saltBytes = base64ToBytes(record.salt);
     const key = await deriveKey(passphrase, saltBytes, record.kdfParams);
-    const plaintext = await decryptWithKey(key, record); // throws WRONG_PASSPHRASE on failure
+    const plaintext = await decryptAllLinesWithKey(key, record);
     return { plaintext, key };
   }
 
@@ -225,8 +216,9 @@ const Cipher = (() => {
     deriveKey,
     createRecord,
     decryptRecord,
-    decryptWithKey,
-    encryptWithKey,
-    ARGON2_PARAMS, // exposed read-only for reference (e.g. showing params in a debug/settings view later)
+    decryptLineWithKey,
+    encryptLinesWithKey,
+    decryptAllLinesWithKey,
+    ARGON2_PARAMS,
   };
 })();
