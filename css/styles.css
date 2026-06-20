@@ -265,54 +265,43 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   flex: 1; /* pushes the pin button and "+ Corpus" to the right edge */
 }
 
-/* Pin toggle — double chevron rather than a pushpin glyph, to stay in
-   the parchment/ink/brass register rather than a flat modern icon font.
-   Unpinned (default/rest state): faint, light-weight ink, pointing left
-   («) — reads as "inactive, could retreat." Pinned: bold solid brass
-   ink, rotated 180° to point right (»), the direction the panel pushes
-   content when it claims layout space, PLUS a small brass underline
-   tick — the exact same signature element already used for the active
-   tab (see .tab.active::after below): a quiet, specific mark of "the
-   current one," not a filled circle/pill. Remnant has no circular
-   badge language anywhere else in the app, so a round background here
-   would have introduced a new visual vocabulary rather than extending
-   the existing one. The underline does that instead — same motif,
-   same proportions, just on a different element. */
+/* Pin toggle — custom hand-drawn artwork (a small Remnant outline; the
+   pinned state shows the same outline pierced by a dagger), rather than
+   any abstract symbol (pushpin emoji, chevrons) borrowed from outside
+   the app's own visual vocabulary. The icon literally illustrates the
+   feature: a Remnant pinned in place by the thing doing the pinning.
+   Two <img> elements sit in the button (see index.html); exactly one is
+   shown at a time via display none/block, toggled by the .active class
+   — the same pattern as the Illuminate/Obscure button pair elsewhere in
+   this file. Both source images were pre-scaled so their PARCHMENT
+   portions match in height (not their raw canvas size — the pinned
+   artwork's canvas is taller because the dagger hilt extends above the
+   parchment), so toggling between states reads as "a dagger appears,"
+   not "the icon resizes." */
 .nav-pin-btn {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1.05rem;
-  font-weight: 400;
-  line-height: 1;
-  position: relative;
-  padding: .2rem .5rem .35rem;
-  margin-right: -.4rem; /* pulls flush against the panel's right edge, past the header's own padding */
+  display: flex;
+  align-items: flex-end; /* both icons' parchment portions sit on the same baseline, even though the pinned canvas is taller above it */
+  padding: 0 .35rem;
+  margin-right: -.3rem; /* pulls flush against the panel's right edge, past the header's own padding */
   border-radius: var(--r-sm);
-  color: var(--muted);
-  opacity: .55;
-  transform: rotate(0deg);
-  transition: opacity .15s, transform .25s ease, color .15s, font-weight .15s;
+  opacity: .6;
+  transition: opacity .15s;
 }
-.nav-pin-btn:hover { background: var(--paper-dark); opacity: .85; }
-.nav-pin-btn.active {
-  opacity: 1;
-  color: var(--brass);
-  font-weight: 700;
-  transform: rotate(180deg);
+.nav-pin-btn:hover { background: var(--paper-dark); opacity: .9; }
+.nav-pin-btn.active { opacity: 1; }
+
+.nav-pin-icon {
+  height: 22px;
+  width: auto;
+  display: block;
 }
-.nav-pin-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: .15rem; left: .45rem; right: .45rem;
-  height: 2px;
-  background: var(--brass);
-  border-radius: 2px;
-  /* No counter-rotation needed: a symmetric horizontal bar rotated
-     180° about its own center is visually identical to itself, so
-     it stays a flat tick beneath the glyph regardless of the
-     parent's own 180° flip. */
-}
+.nav-pin-icon-unpinned { display: block; }
+.nav-pin-icon-pinned   { display: none; }
+.nav-pin-btn.active .nav-pin-icon-unpinned { display: none; }
+.nav-pin-btn.active .nav-pin-icon-pinned   { display: block; }
 
 .nav-tree {
   flex: 1;
