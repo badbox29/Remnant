@@ -605,16 +605,32 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 /* Token-level spans (one per word/whitespace run), matching the real
    textarea's text wrapping exactly — a long line that wraps across
    several visual rows is several tokens landing on different rows, so
-   the spotlight reveal can target one ROW, not one logical line. */
+   the spotlight reveal can target one ROW, not one logical line.
+   Every token holds the REAL text (not substituted noise) — see
+   rebuildCipherOverlay's comment for why: this guarantees the overlay
+   wraps identically to the textarea, since it's literally the same
+   string. Disguise is achieved with blur strength alone:
+     default (no class)  — far from the cursor: heavy blur, fully
+                            illegible. This is the resting state for
+                            most of the document.
+     .blurred             — immediate neighbor of the revealed row:
+                            lighter blur, gives a soft falloff at the
+                            edge of the spotlight rather than a hard cut.
+     .revealed            — the row under the cursor: fully clear.
+   A future theming pass may reintroduce scrambled-character disguise
+   using a mirror-div technique; for now this is intentionally simpler
+   and provably correct. */
 .cipher-overlay-token {
-  color: var(--muted);
+  color: var(--ink);
+  filter: blur(6px);
+  opacity: .55;
+  transition: filter .12s, opacity .12s;
 }
 .cipher-overlay-token.blurred {
   filter: blur(3px);
-  opacity: .7;
+  opacity: .75;
 }
 .cipher-overlay-token.revealed {
-  color: var(--ink);
   filter: none;
   opacity: 1;
 }
