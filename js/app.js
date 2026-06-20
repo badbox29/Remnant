@@ -25,6 +25,11 @@ const App = {
   openNotes: {},         // in-memory cache of notes currently open in tabs: { [id]: note }
   activeNoteId: null,
   syncCheckTimer: null,
+  // Cipher obscured-viewer keyboard navigation: click-to-enter, arrow
+  // keys move the reveal, Escape exits. Mouse movement is ignored while
+  // true — a deliberately separate mode, not a temporary hover override.
+  // See enterCipherKeyboardMode/exitCipherKeyboardMode.
+  _cipherKeyboardMode: false,
   // In-memory cache of the structure tree (Books/Chapters), rebuilt from
   // IndexedDB on boot and after any structural edit. Note CONTENT is never
   // cached wholesale here — only the lightweight book/chapter records and
@@ -386,6 +391,7 @@ async function openNoteInTab(id) {
 }
 
 function setActiveNote(id) {
+  if (App._cipherKeyboardMode && App.activeNoteId !== id) exitCipherKeyboardMode();
   App.activeNoteId = id;
   // Only a plain Remnant's active-tab id is ever written into App.data —
   // that object is what gets persisted to localStorage and synced to KV.
@@ -402,6 +408,7 @@ function setActiveNote(id) {
 async function closeTab(id) {
   const wasCipher = App.openCipherIds.includes(id);
   if (wasCipher) {
+    if (App._cipherKeyboardMode && App.activeNoteId === id) exitCipherKeyboardMode();
     App.openCipherIds = App.openCipherIds.filter(x => x !== id);
     // obscureCipher flushes any pending debounced save (if this Cipher
     // is illuminated and mid-edit) BEFORE we delete its unlocked-state
@@ -904,6 +911,7 @@ async function submitCipherIlluminate() {
 function illuminateCipher(id) {
   if (!App.illuminatedCipherIds.includes(id)) App.illuminatedCipherIds.push(id);
   resetIlluminateIdleTimer();
+  if (App._cipherKeyboardMode) exitCipherKeyboardMode(); // the viewer is about to be replaced by the textarea
   renderActiveNote();
   renderTabs();
 }
@@ -2239,16 +2247,141 @@ function attachCipherObscuredViewerTracking() {
     });
   }
 
-  viewerEl.addEventListener('mousemove', (e) => queueSync(e.clientY));
+  // Keyboard navigation mode (desktop): click anywhere in the viewer to
+  // enter a locked reveal mode controlled by arrow keys instead of mouse
+  // position. Mouse movement is deliberately IGNORED while active — this
+  // is a genuinely separate mode, not a temporary override, so a stray
+  // mouse twitch doesn't silently kick you back to hover-follow. Escape
+  // exits back to normal hover-follow with everything re-obscured.
+  viewerEl.addEventListener('mousemove', (e) => {
+    if (App._cipherKeyboardMode) return;
+    queueSync(e.clientY);
+  });
+
+  viewerEl.addEventListener('click', () => {
+    if (isIlluminated(App.activeNoteId)) return;
+    enterCipherKeyboardMode();
+  });
+
   viewerEl.addEventListener('touchmove', (e) => {
     if (!e.touches?.length) return;
-    queueSync(e.touches[0].clientY - TOUCH_REVEAL_OFFSET_PX);
+    const y = e.touches[0].clientY;
+    queueSync(y - TOUCH_REVEAL_OFFSET_PX);
+    updateTouchEdgeAutoScroll(viewerEl, y);
   }, { passive: true });
+  viewerEl.addEventListener('touchend', stopTouchEdgeAutoScroll);
+  viewerEl.addEventListener('touchcancel', stopTouchEdgeAutoScroll);
+
   // Native scroll — the viewer is a real scroll container with real
   // per-row content height, so scrolling just works; only the active-
   // row DETECTION needs a refresh as rows move under the (stationary,
   // during a scroll) pointer position.
   viewerEl.addEventListener('scroll', () => queueSync(App._lastPointerY), { passive: true });
+}
+
+// ─── Touch edge auto-scroll ─────────────────────────────────────────
+//
+// While dragging (touchmove) near the top or bottom edge of the viewer,
+// auto-scroll the document in that direction, scaled by how deep into
+// the edge zone the finger is — shallow into the zone scrolls slowly,
+// right at the very edge scrolls faster. Moving back out of the zone
+// (without lifting the finger) stops it immediately. This exists
+// because on touch, "drag to scroll" and "drag to reveal" are the same
+// physical gesture and were fighting each other; this turns them into
+// one continuous motion instead of two competing ones.
+const EDGE_ZONE_FRACTION = 0.18; // top/bottom 18% of the viewer's height
+const EDGE_SCROLL_MAX_PX_PER_FRAME = 14;
+
+let edgeScrollDirection = 0; // -1 up, 0 none, 1 down
+let edgeScrollSpeed = 0;
+let edgeScrollRAF = null;
+
+function updateTouchEdgeAutoScroll(viewerEl, touchClientY) {
+  const rect = viewerEl.getBoundingClientRect();
+  const zoneSize = rect.height * EDGE_ZONE_FRACTION;
+  const distanceFromTop    = touchClientY - rect.top;
+  const distanceFromBottom = rect.bottom - touchClientY;
+
+  if (distanceFromBottom < zoneSize) {
+    edgeScrollDirection = 1;
+    edgeScrollSpeed = EDGE_SCROLL_MAX_PX_PER_FRAME * (1 - Math.max(0, distanceFromBottom) / zoneSize);
+  } else if (distanceFromTop < zoneSize) {
+    edgeScrollDirection = -1;
+    edgeScrollSpeed = EDGE_SCROLL_MAX_PX_PER_FRAME * (1 - Math.max(0, distanceFromTop) / zoneSize);
+  } else {
+    edgeScrollDirection = 0;
+  }
+
+  if (edgeScrollDirection !== 0 && !edgeScrollRAF) {
+    const step = () => {
+      if (edgeScrollDirection === 0) { edgeScrollRAF = null; return; }
+      viewerEl.scrollTop += edgeScrollDirection * edgeScrollSpeed;
+      edgeScrollRAF = requestAnimationFrame(step);
+    };
+    edgeScrollRAF = requestAnimationFrame(step);
+  }
+}
+
+function stopTouchEdgeAutoScroll() {
+  edgeScrollDirection = 0;
+  if (edgeScrollRAF) { cancelAnimationFrame(edgeScrollRAF); edgeScrollRAF = null; }
+}
+
+// ─── Keyboard navigation mode ───────────────────────────────────────
+//
+// Click anywhere in the obscured viewer to enter: reveals the TOP row
+// (not wherever you clicked), then Up/Down arrows move the reveal one
+// row at a time, scrolling it into view as needed. Escape exits back
+// to normal hover-follow, fully re-obscuring everything. Mouse movement
+// is ignored for the duration — this is a deliberately separate,
+// locked mode, not a temporary hover override.
+
+function enterCipherKeyboardMode() {
+  const id = App.activeNoteId;
+  if (!id || isIlluminated(id)) return;
+  App._cipherKeyboardMode = true;
+  document.getElementById('cipher-obscured-viewer')?.classList.add('keyboard-mode');
+  cipherViewerActiveRowIndex = -1; // force activateRow to actually run for row 0, even if it was already hover-active
+  navigateCipherKeyboardRow(id, 0);
+  document.addEventListener('keydown', handleCipherKeyboardNav);
+}
+
+function exitCipherKeyboardMode() {
+  App._cipherKeyboardMode = false;
+  document.getElementById('cipher-obscured-viewer')?.classList.remove('keyboard-mode');
+  document.removeEventListener('keydown', handleCipherKeyboardNav);
+  const viewerEl = document.getElementById('cipher-obscured-viewer');
+  const rows = viewerEl?.querySelectorAll('.cipher-obscured-row');
+  if (rows && cipherViewerActiveRowIndex >= 0 && rows[cipherViewerActiveRowIndex]) {
+    deactivateRow(rows[cipherViewerActiveRowIndex]);
+  }
+  rows?.forEach(r => r.classList.remove('adjacent'));
+  cipherViewerActiveRowIndex = -1;
+}
+
+function navigateCipherKeyboardRow(id, newIndex) {
+  const viewerEl = document.getElementById('cipher-obscured-viewer');
+  const rows = viewerEl?.querySelectorAll('.cipher-obscured-row');
+  if (!rows?.length) return;
+  const clamped = Math.max(0, Math.min(rows.length - 1, newIndex));
+  if (clamped === cipherViewerActiveRowIndex) return;
+
+  const prevIdx = cipherViewerActiveRowIndex;
+  cipherViewerActiveRowIndex = clamped;
+  const myToken = ++cipherViewerDecryptToken;
+
+  if (prevIdx >= 0 && rows[prevIdx]) deactivateRow(rows[prevIdx]);
+  rows.forEach((row, i) => row.classList.toggle('adjacent', i === clamped - 1 || i === clamped + 1));
+  activateRow(id, rows[clamped], clamped, myToken);
+  rows[clamped].scrollIntoView({ block: 'nearest' });
+}
+
+function handleCipherKeyboardNav(e) {
+  if (!App._cipherKeyboardMode) return;
+  const id = App.activeNoteId;
+  if (e.key === 'ArrowDown') { e.preventDefault(); navigateCipherKeyboardRow(id, cipherViewerActiveRowIndex + 1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); navigateCipherKeyboardRow(id, cipherViewerActiveRowIndex - 1); }
+  else if (e.key === 'Escape') { e.preventDefault(); exitCipherKeyboardMode(); }
 }
 attachCipherObscuredViewerTracking();
 
