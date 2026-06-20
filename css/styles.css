@@ -562,6 +562,13 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   resize: none;
   outline: none;
   color: var(--ink);
+  /* Without this, a touch-drag inside the textarea is ambiguous between
+     "select text" and "scroll the page" on mobile, and browsers commonly
+     default to selection — trapping the page with no way to scroll past
+     what's already visible. pan-y explicitly allows vertical scrolling
+     gestures while still permitting tap-to-position-cursor and (on most
+     browsers) a deliberate press-and-hold for selection. */
+  touch-action: pan-y;
 }
 .note-body-input::placeholder { color: var(--muted); opacity: .6; }
 
@@ -624,6 +631,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   font-size: .92rem;
   line-height: 1.65;
   color: var(--ink);
+  touch-action: pan-y;
 }
 .scratchpad-input::placeholder { color: var(--muted); opacity: .6; }
 
@@ -887,8 +895,12 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 
 /* Hidden above the mobile breakpoint — desktop keeps the always-visible
-   inline column, no toggle needed. */
-.scratchpad-toggle-btn { display: none; }
+   inline column, no toggle needed. The 640px media query above sets it
+   back to inline-flex; this base rule applies everywhere ABOVE that
+   breakpoint width only by virtue of being overridden there. */
+@media (min-width: 641px) {
+  .scratchpad-toggle-btn { display: none; }
+}
 .scratchpad-close-btn { display: none; }
 @media (max-width: 640px) {
   .scratchpad-close-btn {
