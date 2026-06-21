@@ -1656,7 +1656,6 @@ function buildNoteRow(noteSummary) {
   row.innerHTML = `
     <span class="nav-row-caret placeholder">·</span>
     <span class="nav-row-label"></span>
-    ${isCipher ? '<span class="nav-row-cipher-badge" title="Cipher">🔒</span>' : ''}
     <span class="nav-row-actions">
       <span class="nav-row-action-btn" data-action="delete-note" title="${isCipher ? 'Delete cipher' : 'Delete remnant'}">🗑</span>
     </span>
