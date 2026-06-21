@@ -397,17 +397,18 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 
 
-/* Cipher rows are distinguished by label color alone — a deep rust/
-   oxide tone — rather than a lock-icon badge. Targets .nav-row-cipher
+/* Cipher rows are distinguished by label color alone — a red tone —
+   rather than a lock-icon badge (the icon itself is the custom Cipher
+   icon, unrelated to this color rule). Targets .nav-row-cipher
    .nav-row-label specifically (not the whole row) so the caret, delete
    button, etc. stay in their normal colors and only the title itself
    reads as "this one's a Cipher." Repeated with the .active selector
-   so the oxide color still wins when a Cipher is the open tab — without
+   so the red color still wins when a Cipher is the open tab — without
    this, .nav-row.active's own color rule (same specificity, comes later
    in source order) would silently override it. */
 .nav-row-cipher .nav-row-label,
 .nav-row.active.nav-row-cipher .nav-row-label {
-  color: var(--oxide);
+  color: var(--red);
 }
 
 .nav-row-actions {
