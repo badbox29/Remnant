@@ -2207,14 +2207,15 @@ function buildFragmentsSection() {
   }
   fragments.forEach(f => childWrap.appendChild(buildFragmentRow(f)));
 
+  wrap.appendChild(childWrap);
+
   const dustCount = Object.values(App.fragmentSummaries).filter(f => f.status === 'dust').length;
   const dustRow = document.createElement('div');
-  dustRow.className = 'nav-row nav-row-note nav-row-dust-link';
-  dustRow.innerHTML = `<span class="nav-row-caret placeholder">·</span><span class="nav-row-label">Dust${dustCount ? ` (${dustCount})` : ''}</span>`;
+  dustRow.className = 'nav-row nav-row-unfiled-header nav-row-dust-link';
+  dustRow.innerHTML = `<span class="nav-row-label">Dust${dustCount ? ` (${dustCount})` : ''}</span>`;
   dustRow.addEventListener('click', () => openDustModal());
-  childWrap.appendChild(dustRow);
+  wrap.appendChild(dustRow);
 
-  wrap.appendChild(childWrap);
   return wrap;
 }
 
