@@ -1226,24 +1226,34 @@ async function loadScratchpad() {
 
 const scratchpadInput = document.getElementById('scratchpad-input');
 const scratchpadContextMenu = document.getElementById('scratchpad-context-menu');
+let _scratchpadMenuSelection = null; // { start, end } captured at right-click time — see below for why
 
 scratchpadInput?.addEventListener('contextmenu', (e) => {
   const hasSelection = scratchpadInput.selectionStart !== scratchpadInput.selectionEnd;
   if (!hasSelection) return; // let the native context menu show — nothing to offer here without a selection
   e.preventDefault();
-  scratchpadContextMenu.style.left = `${e.pageX}px`;
-  scratchpadContextMenu.style.top  = `${e.pageY}px`;
+  // Captured NOW, not when the menu item is later clicked: the
+  // intervening click on the menu item shifts focus away from the
+  // textarea, and selectionStart/selectionEnd are not reliable to read
+  // back off an unfocused textarea across browsers. Locking in the
+  // range at the moment the menu opens (when the selection is known-good)
+  // removes that dependency entirely.
+  _scratchpadMenuSelection = { start: scratchpadInput.selectionStart, end: scratchpadInput.selectionEnd };
+  scratchpadContextMenu.style.left = `${e.clientX}px`;
+  scratchpadContextMenu.style.top  = `${e.clientY}px`;
   scratchpadContextMenu.style.display = 'block';
 });
 
 document.addEventListener('click', () => {
   scratchpadContextMenu.style.display = 'none';
+  _scratchpadMenuSelection = null;
 });
 
 document.getElementById('scratchpad-context-create-fragment')?.addEventListener('click', async () => {
-  const start = scratchpadInput.selectionStart;
-  const end   = scratchpadInput.selectionEnd;
-  if (start === end) return; // selection may have been lost between right-click and click (e.g. the menu click itself); no-op rather than create an empty Fragment
+  const sel = _scratchpadMenuSelection;
+  _scratchpadMenuSelection = null;
+  if (!sel || sel.start === sel.end) return; // no selection was captured when the menu opened — nothing to cut
+  const { start, end } = sel;
   const selectedText = scratchpadInput.value.slice(start, end);
 
   // Cut: remove the selected range from the scratchpad's own value, then
