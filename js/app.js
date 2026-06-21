@@ -1262,9 +1262,48 @@ document.getElementById('scratchpad-context-create-fragment')?.addEventListener(
   // persist the shortened scratchpad immediately — this is a MOVE, and
   // both halves (new Fragment + shrunk scratchpad) must land together,
   // not leave a window where the text exists in neither or both.
-  const before = scratchpadInput.value.slice(0, start);
-  const after  = scratchpadInput.value.slice(end);
-  scratchpadInput.value = before + after;
+  let before = scratchpadInput.value.slice(0, start);
+  let after  = scratchpadInput.value.slice(end);
+
+  // A plain substring cut leaves behind whatever whitespace used to
+  // separate the selection from its neighbors — e.g. cutting "foo" out
+  // of "bar foo baz" naively leaves "bar  baz" (double space), and
+  // cutting a whole paragraph out of "a\n\nfoo\n\nb" naively leaves
+  // "a\n\n\n\nb" (extra blank lines). Trim ONE adjacent run of
+  // horizontal whitespace, plus the ENTIRE adjacent run of newlines
+  // (however many blank lines that left), off each side of the seam,
+  // then rejoin: with a single newline if either side had any newline
+  // (preserving line structure without leaving extra blank lines),
+  // otherwise a single space — only if both sides still have content,
+  // so we don't introduce a stray separator at the very start/end of
+  // the scratchpad.
+
+  // Trim trailing " "/"\t", then ALL trailing "\n"s (collapsing any
+  // blank-line gap left by the cut, not just a single line break), off
+  // `before`.
+  let trimmedNewlineBefore = false;
+  while (before.length && (before.endsWith(' ') || before.endsWith('\t'))) before = before.slice(0, -1);
+  while (before.endsWith('\n')) { before = before.slice(0, -1); trimmedNewlineBefore = true; }
+  while (before.length && (before.endsWith(' ') || before.endsWith('\t'))) before = before.slice(0, -1);
+
+  // Trim leading " "/"\t", then ALL leading "\n"s, off `after`.
+  let trimmedNewlineAfter = false;
+  while (after.length && (after.startsWith(' ') || after.startsWith('\t'))) after = after.slice(1);
+  while (after.startsWith('\n')) { after = after.slice(1); trimmedNewlineAfter = true; }
+  while (after.length && (after.startsWith(' ') || after.startsWith('\t'))) after = after.slice(1);
+
+  const hasBefore = before.length > 0;
+  const hasAfter  = after.length > 0;
+  const sawNewline = trimmedNewlineBefore || trimmedNewlineAfter;
+  const joiner = (!hasBefore || !hasAfter) ? '' : (sawNewline ? '\n' : ' ');
+  let newValue = before + joiner + after;
+
+  // If the cut took the last real content, the scratchpad may now be
+  // nothing but whitespace/newlines — collapse that to fully empty
+  // rather than leaving an invisible-but-present remainder.
+  if (!newValue.trim()) newValue = '';
+
+  scratchpadInput.value = newValue;
   await NotesStore.setScratchpad(scratchpadInput.value);
 
   await createFragmentFromText(selectedText);
