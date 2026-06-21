@@ -347,7 +347,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
    ancestors above them — they sit one level under the section header,
    the same depth as a Scroll (chapter), not a doubly-nested Remnant.
    Override the deep note-level indent down to the chapter-level one. */
-.nav-unfiled-children .nav-row-note { padding-left: 1.85rem; }
+.nav-unfiled-children .nav-row-note { padding-left: .75rem; }
 
 .nav-row-caret {
   width: 14px;
