@@ -114,11 +114,11 @@ const NotesStore = (() => {
   const DELETION_LOG_STORE = 'deletionLog'; // Dust hard-deletes only — see sweepFragments()
   const DB_VERSION        = 3; // v3 adds the deletionLog store (Fragment Lifecycle)
 
-  let _db = null;
+  let _dbPromise = null;
 
   function openDB() {
-    if (_db) return Promise.resolve(_db);
-    return new Promise((resolve, reject) => {
+    if (_dbPromise) return _dbPromise;
+    _dbPromise = new Promise((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = e => {
         const db = e.target.result;
@@ -131,9 +131,10 @@ const NotesStore = (() => {
           db.createObjectStore(DELETION_LOG_STORE, { autoIncrement: true });
         }
       };
-      req.onsuccess = e => { _db = e.target.result; resolve(_db); };
-      req.onerror   = e => reject(e.target.error);
+      req.onsuccess = e => { resolve(e.target.result); };
+      req.onerror   = e => { _dbPromise = null; reject(e.target.error); }; // clear cache on failure so a later call can retry, rather than permanently caching a rejected promise
     });
+    return _dbPromise;
   }
 
   async function store(name, mode) {
