@@ -342,6 +342,13 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 .nav-row-note    { padding-left: 2.95rem; }
 .nav-row-unfiled-header { padding-left: .75rem; font-weight: 600; color: var(--muted); margin-top: .5rem; }
 
+/* Loose Remnants / Loose Fragments rows reuse .nav-row-note for its row
+   styling (icon/label layout, hover, etc.) but have no Corpus/Scroll
+   ancestors above them — they sit one level under the section header,
+   the same depth as a Scroll (chapter), not a doubly-nested Remnant.
+   Override the deep note-level indent down to the chapter-level one. */
+.nav-unfiled-children .nav-row-note { padding-left: 1.85rem; }
+
 .nav-row-caret {
   width: 14px;
   flex-shrink: 0;
