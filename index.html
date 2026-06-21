@@ -128,6 +128,16 @@
     <div class="scratchpad-context-menu-item" id="scratchpad-context-create-fragment">Create as Fragment</div>
   </div>
 
+  <!-- "+" tab-bar menu — replaces the old single-purpose "always creates
+       a Remnant" button now that there are three creatable kinds. Same
+       positioning approach as the scratchpad context menu: hidden by
+       default, shown/positioned via JS, dismissed on outside click. -->
+  <div class="tab-new-menu" id="tab-new-menu" style="display:none;">
+    <div class="tab-new-menu-item" id="tab-new-menu-remnant">New Remnant</div>
+    <div class="tab-new-menu-item" id="tab-new-menu-cipher">New Cipher</div>
+    <div class="tab-new-menu-item" id="tab-new-menu-fragment">New Fragment</div>
+  </div>
+
 </main>
 
 
