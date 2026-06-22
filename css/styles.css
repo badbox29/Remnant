@@ -649,6 +649,78 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   cursor: default;
 }
 
+/* ── Markdown live-preview block styles ──────────────────────────────
+   One real element per block (see markdown.js segmentIntoBlocks/
+   renderBlock) — .md-block is the shared marker class app.js uses to
+   find "which block is the cursor in" by walking up from the
+   selection; the more specific classes (.md-header, .md-code, etc.)
+   carry the actual visual styling per construct. Headers reuse the
+   SAME font-size scale already established for note-title-input
+   (1.6rem at the top level) stepped down per level, so a Markdown
+   header inside a Remnant body doesn't compete visually with the
+   Remnant's own title. */
+
+.md-block { }
+
+.md-header {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--ink);
+  margin: .3em 0 .15em 0;
+}
+h1.md-header { font-size: 1.5rem; }
+h2.md-header { font-size: 1.32rem; }
+h3.md-header { font-size: 1.18rem; }
+h4.md-header { font-size: 1.08rem; }
+h5.md-header { font-size: 1rem; }
+h6.md-header { font-size: .92rem; color: var(--muted); }
+
+.md-hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: .6em 0;
+}
+
+.md-blockquote {
+  margin: .25em 0;
+  padding-left: .8em;
+  border-left: 3px solid var(--brass);
+  color: var(--muted);
+  font-style: italic;
+}
+
+.md-list-item {
+  display: flex;
+  gap: .5em;
+  margin: .1em 0;
+}
+.md-bullet {
+  flex-shrink: 0;
+  color: var(--brass);
+  font-weight: 600;
+}
+
+.md-code {
+  margin: .4em 0;
+  padding: .6em .8em;
+  background: var(--paper-dark);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: .88rem;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+.md-code code { font-family: inherit; }
+
+.md-paragraph { margin: 0; min-height: 1.7em; /* matches line-height so a truly empty paragraph block still reserves a visible blank line, rather than collapsing to zero height */ }
+
+/* The block currently being edited (raw text, syntax visible) gets a
+   subtle background so it's clear which one is "live" without being
+   distracting — same paper-dark tone used elsewhere for hover/active
+   states, not a new color. */
+.md-block.md-editing { background: var(--paper-dark); border-radius: var(--r-sm); }
+
 /* ── Cipher obscured viewer (read-only, per-line decrypt-on-demand) ──
    Shown instead of the textarea whenever a Cipher is unlocked but NOT
    illuminated. Built as one real <div> row per ENCRYPTED line — row
