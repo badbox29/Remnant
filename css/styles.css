@@ -1173,6 +1173,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   .tab-label {
     display: inline-block;
     max-width: 220px;
+    min-width: 0; /* .tab-label is a flex item inside .tab (display:flex) — without this, its default content-based min-width silently overrides max-width/ellipsis, a classic flexbox gotcha */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
