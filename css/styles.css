@@ -544,16 +544,79 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   min-height: 0;
   border: 2px solid transparent;
   border-radius: var(--r-md);
-  transition: border-color .2s, background-color .2s;
+  transition: border-color .2s;
 }
 
-/* Toggled from app.js (renderActiveNoteInner) alongside setBodyDisabled
-   — nothing open at all. Subtly dims the WHOLE content area (toolbar +
-   body together), not just the toolbar buttons, so the empty state
-   reads as one inert region rather than the toolbar going dim while
-   everything around it still looks like a live, ready-to-type editor. */
-.note-editor.empty {
-  background: var(--paper-dark);
+/* note-editor-chrome wraps the REAL editor (title row, toolbar, body) —
+   see index.html. Exactly one of {-empty-state, -chrome} is visible at
+   a time, toggled via showEmptyState()/showEditorChrome() in app.js;
+   this wrapper just needs to behave like a transparent pass-through
+   for the flex layout underneath it. */
+.note-editor-chrome {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Empty state (nothing open at all) ───────────────────────────────
+   Centered artwork + copy, replacing the editor ENTIRELY rather than
+   just dimming it — matches a mockup design pass (quill-and-inkwell
+   illustration, "The archive awaits."). EMPTY_STATE_QUILL_ART (app.js)
+   is set as this img's src once at boot, not re-set on every render. */
+.note-editor-empty-state {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: .25rem;
+  padding: 2rem;
+}
+
+.empty-state-art {
+  width: 280px;
+  height: auto;
+  margin-bottom: 1rem;
+  opacity: .92; /* the artwork's own highlight tones already sit close to --paper (see asset notes) — a touch of opacity softens the remaining edge further rather than it reading as a pasted-on sticker */
+}
+
+.empty-state-heading {
+  font-family: var(--font-display);
+  font-size: 1.85rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+
+.empty-state-divider {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  width: 7rem;
+  margin: .85rem 0;
+  color: var(--brass);
+}
+.empty-state-divider::before,
+.empty-state-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.empty-state-divider span {
+  font-size: .8rem;
+  opacity: .85;
+}
+
+.empty-state-subtext {
+  font-size: .98rem;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0;
+  max-width: 32rem;
 }
 
 /* Illuminate mode's persistent visual indicator — a deliberately
