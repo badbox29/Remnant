@@ -580,7 +580,17 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 .empty-state-art {
   width: 360px;
   height: auto;
-  margin-bottom: 1rem;
+  /* The source artwork has ~50px of transparent canvas below the
+     visible quill/inkwell at this display width (scattered sparkle
+     dots widen its natural bounding box) — that dead space reads as
+     an oversized gap before the heading. Pulling up via a negative
+     margin closes it without re-cropping/re-encoding the asset
+     (cropping tightly was tried and rejected: it more than
+     quadrupled the embedded file size for fine-line art like this,
+     with no real visual benefit over just compensating in CSS).
+     -34px leaves a small intentional breathing gap rather than
+     butting the heading directly against the inkwell's base. */
+  margin-bottom: -34px;
   opacity: .92; /* the artwork's own highlight tones already sit close to --paper (see asset notes) — a touch of opacity softens the remaining edge further rather than it reading as a pasted-on sticker */
 }
 
