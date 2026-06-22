@@ -1060,7 +1060,13 @@ async function submitCipherIlluminate() {
   // Populate the plaintext NOW — this is the moment full decryption
   // happens, deferred from unlock specifically so it only occurs when
   // the user has explicitly chosen the higher-exposure editing mode.
-  if (App.unlockedCiphers[id]) App.unlockedCiphers[id].plaintext = plaintext;
+  // If the Cipher was never explicitly unlocked first (e.g. a freshly
+  // imported Cipher that went straight to Illuminate without an unlock
+  // step), create the unlockedCiphers entry rather than silently
+  // discarding the plaintext because the entry doesn't exist yet.
+  if (!App.unlockedCiphers[id]) App.unlockedCiphers[id] = { key: result.key };
+  App.unlockedCiphers[id].plaintext = plaintext;
+  App.unlockedCiphers[id].key = result.key; // always update — ensures spotlight-reveal works even if a stale/null key was present
   illuminateCipher(id);
   closeModal('modal-cipher-illuminate');
 }
