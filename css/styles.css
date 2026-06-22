@@ -574,6 +574,11 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   padding: 0 0 .6rem 0;
   outline: none;
   color: var(--ink);
+  resize: none;
+  overflow: hidden; /* no scrollbar — height is kept in sync with content via JS (see autoGrowTitle in app.js) */
+  white-space: pre-wrap; /* wrap like the body, instead of an <input>'s single-line clip/scroll */
+  word-break: break-word; /* long unbroken titles (URLs, etc.) wrap rather than overflowing the column on narrow/mobile widths */
+  line-height: 1.25;
 }
 .note-title-input::placeholder { color: var(--border); }
 
