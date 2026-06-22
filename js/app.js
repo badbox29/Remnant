@@ -379,6 +379,36 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 
 // ─── Notes: creation, switching, editing ──────────────────────────
 
+// ─── Body editor helpers (contentEditable, not a <textarea>) ───────
+//
+// note-body-input is a contentEditable <div> — see index.html/styles.css
+// for why (Markdown live-rendering needs to mix rendered HTML spans with
+// plain editable text in the same flow, which a <textarea> structurally
+// cannot do). These helpers are the single place that knows the actual
+// DOM mechanics, so every call site reads as "what" rather than "how":
+//   getBodyText()         → current content (plain text only, for now —
+//                           no Markdown rendering exists yet, so
+//                           textContent is exactly the raw content)
+//   setBodyText(value)    → replace content. Uses textContent specifically
+//                           (not innerHTML) so this is never an HTML-
+//                           injection vector even before any rendering
+//                           logic exists, and so :empty placeholder
+//                           matching keeps working (innerHTML='' set via
+//                           some other path could leave a stray <br>).
+//   setBodyDisabled(bool) → toggles the contenteditable attribute itself;
+//                           CSS (.note-body-input[contenteditable="false"])
+//                           handles the dimmed look.
+//   setBodyPlaceholder(s) → sets data-placeholder, which the :empty::before
+//                           CSS rule reads.
+function getBodyEl() { return document.getElementById('note-body-input'); }
+function getBodyText() { return getBodyEl().textContent; }
+function setBodyText(value) { getBodyEl().textContent = value || ''; }
+function setBodyDisabled(disabled) {
+  const el = getBodyEl();
+  el.setAttribute('contenteditable', disabled ? 'false' : 'true');
+}
+function setBodyPlaceholder(text) { getBodyEl().setAttribute('data-placeholder', text); }
+
 function generateNoteId() {
   return 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
@@ -513,7 +543,7 @@ async function saveActiveNote() {
   const note = App.openNotes[id];
   if (!note) return;
   note.title     = document.getElementById('note-title-input').value;
-  note.content   = document.getElementById('note-body-input').value;
+  note.content   = getBodyText();
   note.updatedAt = Date.now();
   await NotesStore.set(id, note);
   if (App.noteSummaries[id]) {
@@ -789,7 +819,7 @@ async function saveActiveCipher() {
   if (!note) return;
 
   const newTitle = document.getElementById('note-title-input').value;
-  const newPlaintext = document.getElementById('note-body-input').value;
+  const newPlaintext = getBodyText();
 
   unlocked.plaintext = newPlaintext;
 
@@ -1793,7 +1823,7 @@ async function saveActiveFragment() {
   if (!id || !App._activeIsFragment) return;
   const fragment = await NotesStore.get(id);
   if (!fragment || fragment.type !== 'fragment') return;
-  fragment.content = document.getElementById('note-body-input').value;
+  fragment.content = getBodyText();
   await NotesStore.set(id, fragment); // updatedAt bump happens in touchFragment below
   await NotesStore.touchFragment(id); // resets lastInteractedAt — this IS the decay-clock reset
   const refreshed = await NotesStore.get(id);
@@ -2750,7 +2780,7 @@ async function performBookDrop(drag, target, zone) {
 
 // updateCipherControlsVisibility(id) — shows/hides the Illuminate button,
 // Obscure button, illuminated border, warning banner, and switches
-// between the textarea (illuminated) and the read-only obscured viewer
+// between the body editor (illuminated) and the read-only obscured viewer
 // (not illuminated), based on whether the active tab is a Cipher at all.
 // Called from every renderActiveNote() exit path so these stay correct
 // regardless of which branch (no tab / Cipher / plain Remnant) is active.
@@ -2772,11 +2802,11 @@ function updateCipherControlsVisibility(id) {
   editorEl.classList.toggle('illuminated', !!illuminated);
   document.getElementById('note-title-input').placeholder = isCipher ? 'Untitled cipher' : 'Untitled remnant';
 
-  // Exactly one of {textarea, viewer} is visible at a time for a Cipher.
-  // Illuminated -> textarea (full plaintext, editable). Unlocked-but-
+  // Exactly one of {body, viewer} is visible at a time for a Cipher.
+  // Illuminated -> body editor (full plaintext, editable). Unlocked-but-
   // obscured -> the read-only viewer (nothing decrypted except whatever
   // row the cursor is currently over). A plain Remnant always uses the
-  // textarea, same as before.
+  // body editor, same as before.
   const showViewer = isCipher && unlocked && !illuminated;
   viewerEl.style.display = showViewer ? '' : 'none';
   bodyEl.style.display   = showViewer ? 'none' : '';
@@ -2795,7 +2825,6 @@ function renderActiveNote() {
 
 function renderActiveNoteInner() {
   const titleEl = document.getElementById('note-title-input');
-  const bodyEl  = document.getElementById('note-body-input');
   const id      = App.activeNoteId;
 
   // Fragments are title-less by design (see Fragment Lifecycle spec) —
@@ -2810,18 +2839,18 @@ function renderActiveNoteInner() {
     updateFragmentControlsVisibility(id);
     const fragment = App.fragmentSummaries[id];
     if (!fragment) {
-      titleEl.value = ''; bodyEl.value = '';
-      titleEl.disabled = true; bodyEl.disabled = true;
+      titleEl.value = ''; setBodyText('');
+      titleEl.disabled = true; setBodyDisabled(true);
       App._bodyShowingNoteId = null;
       return;
     }
     titleEl.value = '';
     titleEl.disabled = true;
     titleEl.placeholder = 'Fragments have no title';
-    bodyEl.disabled = false;
-    bodyEl.placeholder = 'A passing thought…';
+    setBodyDisabled(false);
+    setBodyPlaceholder('A passing thought…');
     if (App._bodyShowingNoteId !== id) {
-      bodyEl.value = fragment.content || '';
+      setBodyText(fragment.content || '');
       App._bodyShowingNoteId = id;
     }
     return;
@@ -2834,10 +2863,10 @@ function renderActiveNoteInner() {
 
   if (!id || !summary) {
     titleEl.value = '';
-    bodyEl.value  = '';
+    setBodyText('');
     titleEl.disabled = true;
-    bodyEl.disabled  = true;
-    bodyEl.placeholder = 'Open a remnant, or click "+" to start a new one…';
+    setBodyDisabled(true);
+    setBodyPlaceholder('Open a remnant, or click "+" to start a new one…');
     App._bodyShowingNoteId = null;
     return;
   }
@@ -2850,9 +2879,9 @@ function renderActiveNoteInner() {
       // anyway rather than show a stale/wrong body.
       titleEl.value = summary.title || '';
       titleEl.disabled = false;
-      bodyEl.value = '';
-      bodyEl.disabled = true;
-      bodyEl.placeholder = 'Locked.';
+      setBodyText('');
+      setBodyDisabled(true);
+      setBodyPlaceholder('Locked.');
       App._bodyShowingNoteId = null;
       return;
     }
@@ -2860,11 +2889,11 @@ function renderActiveNoteInner() {
     titleEl.value = summary.title || '';
 
     if (isIlluminated(id)) {
-      // Illuminated: textarea, full plaintext, editable — same as before.
-      bodyEl.disabled = false;
-      bodyEl.placeholder = 'Start writing…';
+      // Illuminated: body editable, full plaintext — same as before.
+      setBodyDisabled(false);
+      setBodyPlaceholder('Start writing…');
       if (App._bodyShowingNoteId !== id) {
-        bodyEl.value = unlocked.plaintext || '';
+        setBodyText(unlocked.plaintext || '');
         App._bodyShowingNoteId = id;
       }
     } else {
@@ -2872,7 +2901,7 @@ function renderActiveNoteInner() {
       // array's metadata (count) — no decryption happens just to render
       // the viewer's structure. unlocked.plaintext is null here by
       // design (see the "Ciphers" section header) and is never read.
-      App._bodyShowingNoteId = null; // textarea isn't showing this id's content right now
+      App._bodyShowingNoteId = null; // body isn't showing this id's content right now
       renderCipherObscuredViewer(id);
     }
     return;
@@ -2881,19 +2910,19 @@ function renderActiveNoteInner() {
   const note = App.openNotes[id];
   if (!note) {
     titleEl.value = '';
-    bodyEl.value  = '';
+    setBodyText('');
     titleEl.disabled = true;
-    bodyEl.disabled  = true;
-    bodyEl.placeholder = 'Open a remnant, or click "+" to start a new one…';
+    setBodyDisabled(true);
+    setBodyPlaceholder('Open a remnant, or click "+" to start a new one…');
     App._bodyShowingNoteId = null;
     return;
   }
   titleEl.disabled = false;
-  bodyEl.disabled  = false;
-  bodyEl.placeholder = 'Start writing…';
+  setBodyDisabled(false);
+  setBodyPlaceholder('Start writing…');
   titleEl.value = note.title || '';
   if (App._bodyShowingNoteId !== id) {
-    bodyEl.value = note.content || '';
+    setBodyText(note.content || '');
     App._bodyShowingNoteId = id;
   }
 }
