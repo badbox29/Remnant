@@ -689,11 +689,30 @@ function exitRawMode() {
 // ever active at a time, so activating a new one already deactivates
 // the old).
 function handleBodyClick(e) {
-  const blockIndex = findBlockIndexAtNode(e.target);
-  if (blockIndex === null) return;
+  let blockIndex = findBlockIndexAtNode(e.target);
+  const allBlocks = Markdown.segmentIntoBlocks(App._bodyRawText);
 
-  const blocks = Markdown.segmentIntoBlocks(App._bodyRawText);
-  const block = blocks[blockIndex];
+  if (blockIndex === null) {
+    // The click landed on note-body-input ITSELF, not on any specific
+    // .md-block child — this is a real, common case, not an edge case:
+    // a single short or genuinely EMPTY block (e.g. a brand-new blank
+    // note) can easily have less clickable area than the body's own
+    // padding/min-height, so a click anywhere in that surrounding space
+    // misses the block element's actual box entirely. Without this
+    // fallback, the click is silently swallowed — App._bodyActiveBlockIndex
+    // stays null, and the browser still lets the user type (inserting a
+    // stray text node directly into note-body-input, OUTSIDE any
+    // tracked .md-block), which never gets synced into
+    // App._bodyRawText and is later wiped out by the next render. This
+    // was a real, reproduced bug (see commit/session notes), not
+    // theoretical. Matches ordinary editor behavior: clicking below/
+    // around all visible content places the cursor at the END of the
+    // document, i.e. activates the LAST block.
+    if (allBlocks.length === 0) return; // truly nothing to do (shouldn't happen — segmentIntoBlocks always returns at least one block, even for '')
+    blockIndex = allBlocks.length - 1;
+  }
+
+  const block = allBlocks[blockIndex];
   if (!block) return;
 
   if (block.type === 'code') {
@@ -3733,6 +3752,25 @@ document.getElementById('scratchpad-input')?.addEventListener('input', scheduleS
 
 document.getElementById('note-body-input')?.addEventListener('click', handleBodyClick);
 document.getElementById('note-body-input')?.addEventListener('keydown', handleBodyKeydown);
+document.getElementById('note-body-input')?.addEventListener('focus', () => {
+  // Focus can land in the body through MANY paths besides a click that
+  // happens to hit a .md-block element precisely — Tab-key navigation,
+  // and programmatic .focus() calls (e.g. the title field's Enter-to-
+  // body handler below) are real, common ones, and NONE of them fire
+  // handleBodyClick at all. Without this, App._bodyActiveBlockIndex can
+  // stay null while the user is actively typing into the body — the
+  // browser still accepts keystrokes, but nothing tracks or syncs them
+  // anywhere, so the content silently never saves. This was a real,
+  // reproduced bug (see commit/session notes), not theoretical. If a
+  // block is already correctly active (e.g. this focus event followed
+  // a click that DID land on a block, and handleBodyClick already ran
+  // first — click fires before focus in the real DOM event order),
+  // this is a harmless no-op.
+  if (App._bodyActiveBlockIndex !== null) return;
+  const blocks = Markdown.segmentIntoBlocks(App._bodyRawText);
+  if (!blocks.length) return;
+  enterRawModeAt(blocks.length - 1, blocks[blocks.length - 1].raw.length); // land at the END of the last block, matching normal editor focus behavior
+});
 document.getElementById('note-body-input')?.addEventListener('blur', () => {
   // Losing focus on the body ENTIRELY (not just moving between blocks
   // within it — that's handled by handleBodyKeydown/handleBodyClick)
