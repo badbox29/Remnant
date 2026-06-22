@@ -1160,3 +1160,22 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   .nav-panel { width: 88vw; } /* near-full-width on the Fold 5 outer screen */
   .nav-panel-title { font-size: .92rem; }
 }
+
+/* Tab label truncation on mobile — with .tab-bar's horizontal scroll
+   (see .tab-bar, overflow-x: auto), one long title can push several
+   other tabs off-screen, which is much more awkward to recover from by
+   touch-scrolling than by mouse. Capped at roughly 30 characters' worth
+   of width (~220px in the system sans stack at this size) with an
+   ellipsis — applies uniformly to Remnant, Cipher, and Fragment tabs
+   alike, since they all share the same .tab-label markup. Desktop is
+   unaffected; full titles still show there. */
+@media (max-width: 640px) {
+  .tab-label {
+    display: inline-block;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+}
