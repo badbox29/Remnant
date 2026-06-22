@@ -719,7 +719,7 @@ h6.md-header { font-size: .92rem; color: var(--muted); }
    subtle background so it's clear which one is "live" without being
    distracting — same paper-dark tone used elsewhere for hover/active
    states, not a new color. */
-.md-block.md-editing { background: var(--paper-dark); border-radius: var(--r-sm); }
+.md-block.md-editing { background: var(--paper-dark); border-radius: var(--r-sm); min-height: 1.7em; }
 
 /* ── Cipher obscured viewer (read-only, per-line decrypt-on-demand) ──
    Shown instead of the textarea whenever a Cipher is unlocked but NOT
