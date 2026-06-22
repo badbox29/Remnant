@@ -171,6 +171,19 @@
     </div>
     <div class="modal-body">
 
+      <!-- Settings tab bar — extensible: a future "Themes" tab is
+           anticipated but intentionally not built yet (core
+           functionality first). Tab-switching logic lives in app.js
+           (see switchSettingsTab); panels are plain show/hide, no
+           re-render needed since nothing in here is dynamic per-tab
+           beyond what Auth.renderSettingsSection() already handles. -->
+      <div class="settings-tab-bar" id="settings-tab-bar">
+        <div class="settings-tab active" data-tab="user">User</div>
+        <div class="settings-tab" data-tab="export-import">Export/Import</div>
+      </div>
+
+      <div class="settings-tab-panel active" id="settings-tab-panel-user">
+
       <!-- Profile -->
       <div class="settings-section">
         <div class="settings-section-header">Profile</div>
@@ -260,6 +273,18 @@
           <div style="margin-top:.25rem;">
             <button class="btn btn-ghost btn-sm" id="settings-account-btn">Switch Account</button>
           </div>
+        </div>
+      </div>
+
+      </div>
+
+      <div class="settings-tab-panel" id="settings-tab-panel-export-import">
+        <div class="settings-section">
+          <p class="f13 lh muted" style="margin:0;">
+            Export and import are coming soon — you'll be able to back up
+            your entire Library to a zip file, with an option to decrypt
+            and include Ciphers.
+          </p>
         </div>
       </div>
 
