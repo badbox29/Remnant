@@ -3615,6 +3615,13 @@ async function runExport() {
   const includeCiphers = document.getElementById('export-include-ciphers').checked;
   const startBtn = document.getElementById('export-start-btn');
 
+  // Close settings before starting — same rationale as runImport: if
+  // any Cipher passphrase prompt opens, two simultaneous modal overlays
+  // compete for z-index and click-outside handling in ways that silently
+  // swallow the passphrase prompt. Reopen on the Export/Import tab when
+  // done so the result status message is immediately visible.
+  closeModal('modal-settings');
+
   startBtn.disabled = true;
   statusEl.style.color = 'var(--muted)';
   statusEl.textContent = 'Gathering Library contents…';
@@ -3858,6 +3865,8 @@ async function runExport() {
     statusEl.textContent = 'Export failed — see console for details.';
   } finally {
     startBtn.disabled = false;
+    openModal('modal-settings');
+    switchSettingsTab('export-import');
   }
 }
 
@@ -3922,6 +3931,15 @@ async function runImport() {
     statusEl.textContent = 'Choose a zip file first.';
     return;
   }
+
+  // Close the settings modal before starting — if the import needs to
+  // show the passphrase prompt modal for any Cipher, having two modals
+  // open simultaneously causes stacking and click-outside-handler
+  // conflicts (the settings overlay sits behind the passphrase overlay
+  // and can intercept clicks, silently dismissing one or both).
+  // Reopen settings when the import finishes so the user lands back in
+  // the same place with the updated status message visible.
+  closeModal('modal-settings');
 
   startBtn.disabled = true;
   statusEl.style.color = 'var(--muted)';
@@ -4110,6 +4128,11 @@ async function runImport() {
     statusEl.textContent = 'Import failed — see console for details.';
   } finally {
     startBtn.disabled = false;
+    // Reopen settings on the Export/Import tab so the status message
+    // is visible — but don't call openSettingsModal() which resets
+    // fields and switches to the User tab.
+    openModal('modal-settings');
+    switchSettingsTab('export-import');
   }
 }
 
