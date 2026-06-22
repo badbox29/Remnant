@@ -606,120 +606,92 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   overflow: hidden; /* the TEXTAREA (or the viewer) scrolls its own content internally; this wrapper must never grow taller than its flex box, or it could push .note-editor/.notes-column taller than the viewport, trapping scroll in a fixed-height ancestor further up the chain */
 }
 
-.note-body-input {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 1.5em; /* this inset was originally a textarea-specific scroll-quirk fix (see git history) — kept as-is through the contentEditable swap since a <div> may not need it, but removing it wasn't verified in a real browser yet; revisit if the bottom of long notes looks oddly cut off now that this is a div, not a textarea. */
+.note-body-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden; /* EasyMDE's own CodeMirror scroller handles internal scrolling — this wrapper must never grow taller than its flex box, or it could push .note-editor/.notes-column taller than the viewport, trapping scroll in a fixed-height ancestor further up the chain */
+  display: flex;
+  flex-direction: column;
+}
+
+/* The original <textarea id="note-body-input"> is what EasyMDE
+   progressively enhances on boot (see app.js initBodyEditor) — by the
+   time the app is interactive, EasyMDE has already hidden this element
+   and inserted its own wrapper (.EasyMDEContainer, containing the
+   toolbar + CodeMirror instance) as a sibling. This selector therefore
+   only matters before EasyMDE finishes initializing, or as a fallback. */
+.note-body-input { display: none; }
+
+/* ── EasyMDE integration ──────────────────────────────────────────────
+   EasyMDE/CodeMirror ship with their own visual design (light theme,
+   Font-Awesome toolbar icons, fixed-position fullscreen/preview panes)
+   tuned for a typical page-flow layout — none of that matches
+   Remnant's paper/brass aesthetic or its flexbox-constrained app shell,
+   so this section restyles the parts that are visible in Remnant's
+   actual configured toolbar (see initBodyEditor's toolbar option —
+   image/upload/preview/side-by-side/fullscreen/guide are excluded
+   entirely and intentionally left unstyled here). */
+
+.EasyMDEContainer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.EasyMDEContainer .CodeMirror {
+  flex: 1;
+  min-height: 0;
+  height: auto; /* override CodeMirror's own default min-height:300px sizing — Remnant's flex layout controls actual height */
   border: none;
   background: transparent;
-  outline: none;
   color: var(--ink);
   font-family: var(--font-body);
   font-size: .98rem;
   line-height: 1.7;
   padding: 0;
-  overflow-y: auto;
-  white-space: pre-wrap; /* contentEditable's default browser behavior already wraps text and preserves most whitespace, but explicit pre-wrap keeps consecutive spaces/line breaks from collapsing the way plain HTML flow text normally would */
-  /* Without this, a touch-drag inside the body is ambiguous between
-     "select text" and "scroll the page" on mobile, and browsers commonly
-     default to selection — trapping the page with no way to scroll past
-     what's already visible. pan-y explicitly allows vertical scrolling
-     gestures while still permitting tap-to-position-cursor and (on most
-     browsers) a deliberate press-and-hold for selection. */
-  touch-action: pan-y;
 }
-/* contentEditable has no native ::placeholder — this is the standard
-   CSS-only substitute: show a pseudo-element with the placeholder text
-   only while the div is genuinely empty, hide it (browsers do this
-   automatically) the instant any content/cursor changes things. Note:
-   :empty fails to match if the div contains so much as a stray <br> —
-   app.js must take care never to leave one behind when clearing content
-   (set textContent = '' exactly, not innerHTML with a lingering <br>). */
-.note-body-input:empty::before {
-  content: attr(data-placeholder);
-  color: var(--muted);
-  opacity: .6;
-  pointer-events: none;
-}
-/* Disabled state — contentEditable has no native disabled attribute;
-   toggling the contenteditable="false" attribute itself (done in JS)
-   removes editability, but browsers don't dim/style that for you the
-   way a real disabled form control would, so it's done explicitly here. */
-.note-body-input[contenteditable="false"] {
-  color: var(--muted);
-  cursor: default;
-}
+.EasyMDEContainer .CodeMirror-scroll { min-height: 0; }
+.EasyMDEContainer .CodeMirror-placeholder { color: var(--muted) !important; opacity: .6; }
+.EasyMDEContainer .CodeMirror-cursor { border-left-color: var(--ink); }
+.EasyMDEContainer .CodeMirror-selected { background: var(--paper-dark); }
 
-/* ── Markdown live-preview block styles ──────────────────────────────
-   One real element per block (see markdown.js segmentIntoBlocks/
-   renderBlock) — .md-block is the shared marker class app.js uses to
-   find "which block is the cursor in" by walking up from the
-   selection; the more specific classes (.md-header, .md-code, etc.)
-   carry the actual visual styling per construct. Headers reuse the
-   SAME font-size scale already established for note-title-input
-   (1.6rem at the top level) stepped down per level, so a Markdown
-   header inside a Remnant body doesn't compete visually with the
-   Remnant's own title. */
+/* Markdown syntax highlighting — CodeMirror's gfm mode colors/weights
+   the raw text as you type (headers bold+larger, **bold** bold,
+   blockquote/link colored, etc.) without hiding the syntax markers
+   themselves; see the Markdown Support spec discussion for why this
+   (CodeMirror's native behavior) was accepted instead of the earlier
+   hide-syntax-until-active approach. Recolored to Remnant's palette
+   rather than CodeMirror's defaults (blue headers, etc.). */
+.cm-s-easymde .cm-header { color: var(--brass-dark); font-weight: 600; }
+.cm-s-easymde .cm-strong { color: var(--ink); font-weight: 700; }
+.cm-s-easymde .cm-em { color: var(--ink); font-style: italic; }
+.cm-s-easymde .cm-quote { color: var(--muted); font-style: italic; }
+.cm-s-easymde .cm-link { color: var(--brass-dark); }
+.cm-s-easymde .cm-url { color: var(--muted); }
+.cm-s-easymde .cm-comment { background: var(--paper-dark); border-radius: var(--r-sm); } /* fenced code blocks render via the 'comment' token in gfm mode */
 
-.md-block { }
-
-.md-header {
-  font-family: var(--font-display);
-  font-weight: 600;
-  color: var(--ink);
-  margin: .3em 0 .15em 0;
-}
-h1.md-header { font-size: 1.5rem; }
-h2.md-header { font-size: 1.32rem; }
-h3.md-header { font-size: 1.18rem; }
-h4.md-header { font-size: 1.08rem; }
-h5.md-header { font-size: 1rem; }
-h6.md-header { font-size: .92rem; color: var(--muted); }
-
-.md-hr {
+.editor-toolbar {
+  opacity: 1;
   border: none;
-  border-top: 1px solid var(--border);
-  margin: .6em 0;
-}
-
-.md-blockquote {
-  margin: .25em 0;
-  padding-left: .8em;
-  border-left: 3px solid var(--brass);
-  color: var(--muted);
-  font-style: italic;
-}
-
-.md-list-item {
-  display: flex;
-  gap: .5em;
-  margin: .1em 0;
-}
-.md-bullet {
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: .4rem .2rem;
+  margin-bottom: .5rem;
   flex-shrink: 0;
-  color: var(--brass);
-  font-weight: 600;
 }
-
-.md-code {
-  margin: .4em 0;
-  padding: .6em .8em;
-  background: var(--paper-dark);
+.editor-toolbar:hover { opacity: 1; }
+.editor-toolbar a {
+  color: var(--muted) !important;
   border-radius: var(--r-sm);
-  border: 1px solid var(--border);
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: .88rem;
-  white-space: pre-wrap;
-  overflow-x: auto;
 }
-.md-code code { font-family: inherit; }
-
-.md-paragraph { margin: 0; min-height: 1.7em; /* matches line-height so a truly empty paragraph block still reserves a visible blank line, rather than collapsing to zero height */ }
-
-/* The block currently being edited (raw text, syntax visible) gets a
-   subtle background so it's clear which one is "live" without being
-   distracting — same paper-dark tone used elsewhere for hover/active
-   states, not a new color. */
-.md-block.md-editing { background: var(--paper-dark); border-radius: var(--r-sm); min-height: 1.7em; }
+.editor-toolbar a:hover, .editor-toolbar a.active {
+  background: var(--paper-dark);
+  border-color: var(--border);
+  color: var(--brass-dark) !important;
+}
+.editor-toolbar i.separator { border-left-color: var(--border); }
 
 /* ── Cipher obscured viewer (read-only, per-line decrypt-on-demand) ──
    Shown instead of the textarea whenever a Cipher is unlocked but NOT
