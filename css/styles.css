@@ -544,7 +544,16 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   min-height: 0;
   border: 2px solid transparent;
   border-radius: var(--r-md);
-  transition: border-color .2s;
+  transition: border-color .2s, background-color .2s;
+}
+
+/* Toggled from app.js (renderActiveNoteInner) alongside setBodyDisabled
+   — nothing open at all. Subtly dims the WHOLE content area (toolbar +
+   body together), not just the toolbar buttons, so the empty state
+   reads as one inert region rather than the toolbar going dim while
+   everything around it still looks like a live, ready-to-type editor. */
+.note-editor.empty {
+  background: var(--paper-dark);
 }
 
 /* Illuminate mode's persistent visual indicator — a deliberately
@@ -677,12 +686,17 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   margin-bottom: .5rem;
   flex-shrink: 0;
 }
-.editor-toolbar:hover { opacity: 1; }
-.editor-toolbar a {
+/* NOT applied while disabled-for-preview is set — without this guard,
+   hovering the toolbar (exactly where the cursor tends to land right
+   after seeing an empty editor) forced opacity back to 1 regardless of
+   the disabled state, defeating the whole "look inert" effect from
+   setBodyDisabled(). This was a real, confirmed bug, not theoretical. */
+.editor-toolbar:hover:not(.disabled-for-preview) { opacity: 1; }
+.editor-toolbar button {
   color: var(--muted) !important;
   border-radius: var(--r-sm);
 }
-.editor-toolbar a:hover, .editor-toolbar a.active {
+.editor-toolbar button:hover, .editor-toolbar button.active {
   background: var(--paper-dark);
   border-color: var(--border);
   color: var(--brass-dark) !important;
