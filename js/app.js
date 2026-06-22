@@ -477,6 +477,17 @@ function setBodyDisabled(disabled) {
   // taking focus at all while disabled — matches the previous
   // contenteditable="false" behavior, where a disabled body couldn't
   // be focused/typed into either.
+
+  // Dim/disable the toolbar too — without this, the bold/header/etc.
+  // buttons stay fully clickable-looking even with nothing open,
+  // which reads as a live, usable editor floating over a placeholder
+  // rather than an inert one. .disabled-for-preview is EasyMDE's own
+  // existing convention (normally toggled when entering preview mode)
+  // — reused here rather than inventing a parallel mechanism, since it
+  // already does exactly what's needed: opacity + pointer-events:none
+  // on every toolbar button.
+  const toolbarEl = App._easyMDEWrapperEl?.querySelector('.editor-toolbar');
+  toolbarEl?.classList.toggle('disabled-for-preview', disabled);
 }
 
 function setBodyPlaceholder(text) {
@@ -2942,7 +2953,7 @@ function renderActiveNoteInner() {
     setBodyText('');
     titleEl.disabled = true;
     setBodyDisabled(true);
-    setBodyPlaceholder('Open a remnant, or click "+" to start a new one…');
+    setBodyPlaceholder('Nothing open — select something from the nav menu, or click "+" above to create a new entry.');
     App._bodyShowingNoteId = null;
     return;
   }
@@ -2989,7 +3000,7 @@ function renderActiveNoteInner() {
     setBodyText('');
     titleEl.disabled = true;
     setBodyDisabled(true);
-    setBodyPlaceholder('Open a remnant, or click "+" to start a new one…');
+    setBodyPlaceholder('Nothing open — select something from the nav menu, or click "+" above to create a new entry.');
     App._bodyShowingNoteId = null;
     return;
   }
