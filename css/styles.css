@@ -1029,6 +1029,36 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 
 /* ── Settings sections ───────────────────────────────────────────── */
 
+/* Settings tab bar — separate from the note editor's .tab-bar/.tab
+   (different class names entirely, on purpose: that one is a scrollable
+   row of open documents, this is a small fixed set of two-to-a-few
+   panels within one modal, and conflating the two would make future
+   tab-bar changes risk bleeding into this one). Extensible: adding a
+   future "Themes" tab is just one more .settings-tab + panel pair. */
+.settings-tab-bar {
+  display: flex;
+  gap: .3rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.2rem;
+}
+.settings-tab {
+  padding: .55rem .9rem;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px; /* sits flush on top of settings-tab-bar's own border-bottom */
+}
+.settings-tab:hover { color: var(--brass-dark); }
+.settings-tab.active {
+  color: var(--brass-dark);
+  border-bottom-color: var(--brass);
+}
+
+.settings-tab-panel { display: none; }
+.settings-tab-panel.active { display: block; }
+
 .settings-section { margin-bottom: 1.3rem; }
 .settings-section-header {
   font-size: .85rem;
