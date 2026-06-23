@@ -551,21 +551,19 @@ function setBodyPlaceholder(text) {
 }
 
 // ── Remnant read/edit mode ──────────────────────────────────────────
-// Plain Remnants default to read mode: toolbar hidden, cursor disabled.
-// The gold quill button enters edit mode; clicking again or outside exits.
-// Ciphers and Fragments never use this — they have their own patterns.
+// Read mode = EasyMDE's built-in preview (rendered Markdown HTML, no
+// syntax markers, no cursor). Edit mode = live CodeMirror editor with
+// toolbar. Inscribe button toggles between the two.
+// Ciphers use Illuminate/Obscure instead. Fragments follow same pattern.
 
 function enterRemnantEditMode() {
   if (App._remnantEditMode) return;
   App._remnantEditMode = true;
-  // Enable cursor / editing
-  App._easyMDE?.codemirror.setOption('readOnly', false);
-  // Show toolbar
+  // Exit preview mode → back to live CodeMirror editor
+  if (App._easyMDE?.isPreviewActive()) App._easyMDE.togglePreview();
   App._easyMDEWrapperEl?.classList.remove('body-read-mode');
-  // Mark quill button active
-  const quillBtn = document.getElementById('remnant-inscribe-btn');
-  quillBtn?.classList.add('edit-active');
-  // Focus editor at top (not at click position — spec)
+  const btn = document.getElementById('remnant-inscribe-btn');
+  btn?.classList.add('edit-active');
   App._easyMDE?.codemirror.setCursor({line: 0, ch: 0});
   App._easyMDE?.codemirror.focus();
 }
@@ -573,16 +571,23 @@ function enterRemnantEditMode() {
 function exitRemnantEditMode(save) {
   if (!App._remnantEditMode) return;
   App._remnantEditMode = false;
-  // Disable cursor
-  App._easyMDE?.codemirror.setOption('readOnly', 'nocursor');
-  // Hide toolbar
-  App._easyMDEWrapperEl?.classList.add('body-read-mode');
-  // Unmark quill button
-  const quillBtn = document.getElementById('remnant-inscribe-btn');
-  quillBtn?.classList.remove('edit-active');
-  // Blur to remove any cursor remnant
-  App._easyMDE?.codemirror.getInputField()?.blur();
   if (save) scheduleSaveActive();
+  // Enter preview mode → rendered HTML, no cursor
+  if (App._easyMDE && !App._easyMDE.isPreviewActive()) App._easyMDE.togglePreview();
+  App._easyMDEWrapperEl?.classList.add('body-read-mode');
+  const btn = document.getElementById('remnant-inscribe-btn');
+  btn?.classList.remove('edit-active');
+}
+
+// enterReadModeForNewNote() — called when rendering a fresh Remnant/Fragment
+// tab. Ensures preview is active without the save that exitRemnantEditMode
+// would trigger (there's nothing to save yet).
+function enterReadModeForNewNote() {
+  App._remnantEditMode = false;
+  if (App._easyMDE && !App._easyMDE.isPreviewActive()) App._easyMDE.togglePreview();
+  App._easyMDEWrapperEl?.classList.add('body-read-mode');
+  const btn = document.getElementById('remnant-inscribe-btn');
+  btn?.classList.remove('edit-active');
 }
 
 // Apply read or edit mode chrome for plain Remnants.
@@ -591,20 +596,25 @@ function applyRemnantBodyMode(showInscribe) {
   const btn = document.getElementById('remnant-inscribe-btn');
   if (!btn) return;
   if (!showInscribe) {
-    // Cipher or empty — hide Inscribe, strip read-mode class
+    // Cipher or empty — hide Inscribe, ensure we're NOT in preview mode
+    // (Ciphers use their own obscured viewer, not EasyMDE preview)
     btn.style.display = 'none';
+    if (App._easyMDE?.isPreviewActive()) App._easyMDE.togglePreview();
     App._easyMDEWrapperEl?.classList.remove('body-read-mode');
     return;
   }
-  // Plain Remnant or Fragment: show Inscribe button
+  // Plain Remnant or Fragment: show Inscribe button, apply current mode
   btn.style.display = '';
   if (App._remnantEditMode) {
+    // Already in edit mode — ensure preview is off
+    if (App._easyMDE?.isPreviewActive()) App._easyMDE.togglePreview();
     App._easyMDEWrapperEl?.classList.remove('body-read-mode');
     btn.classList.add('edit-active');
   } else {
+    // Read mode — ensure preview is on
+    if (App._easyMDE && !App._easyMDE.isPreviewActive()) App._easyMDE.togglePreview();
     App._easyMDEWrapperEl?.classList.add('body-read-mode');
     btn.classList.remove('edit-active');
-    App._easyMDE?.codemirror.setOption('readOnly', 'nocursor');
   }
 }
 
