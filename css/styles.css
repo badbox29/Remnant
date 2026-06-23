@@ -1615,26 +1615,3 @@ html.dark .EasyMDEContainer .editor-preview {
   color: var(--ink);
 }
 html.dark .CodeMirror-scroll { background: var(--paper); }
-
-/* ── Dark mode icon recoloring ─────────────────────────────────────────
-   Rather than maintaining a separate set of silver icon assets, we
-   recolor the existing warm-tone PNGs via CSS filter. grayscale(1)
-   strips the brass/brown, brightness(1.9) pushes to a light silver.
-   Applied to all nav icons, the empty-state quill art, and the
-   inscribe button quill (::before pseudo-element). */
-html.dark img.nav-row-icon,
-html.dark img.nav-icon-library,
-html.dark img.nav-pin-icon,
-html.dark .empty-state-art {
-  filter: grayscale(1) brightness(1.9);
-}
-
-html.dark .remnant-inscribe-btn::before {
-  filter: grayscale(1) brightness(1.9);
-}
-
-/* Inscribe button in active/edit state already applies brightness(2)
-   — keep that but also desaturate it. */
-html.dark .remnant-inscribe-btn.edit-active::before {
-  filter: grayscale(1) brightness(2);
-}
