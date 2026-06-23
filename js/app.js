@@ -906,7 +906,7 @@ async function saveActiveCipher() {
   const id = App.activeNoteId;
   if (!id) return;
   const unlocked = App.unlockedCiphers[id];
-  if (!unlocked) return;
+  if (!unlocked?.key) return; // no key = can't re-encrypt safely; skip rather than write a broken record
 
   const note = await NotesStore.get(id);
   if (!note) return;
@@ -944,7 +944,10 @@ async function saveActiveCipher() {
 let saveCipherTimer = null;
 function scheduleSaveActiveCipher() {
   clearTimeout(saveCipherTimer);
-  saveCipherTimer = setTimeout(saveActiveCipher, 400);
+  saveCipherTimer = setTimeout(() => {
+    saveCipherTimer = null;
+    saveActiveCipher();
+  }, 400);
 }
 
 // ─── Disguise text generation (currently UNUSED — see note below) ──
@@ -1035,10 +1038,11 @@ async function submitCipherIlluminate() {
   // deliberately stops short of this, decrypting only enough to verify
   // the passphrase. Rendering afterward is outside this try/catch.
   let plaintext;
+  let result;
   try {
     const note = await NotesStore.get(id);
     if (!note || !note.encrypted) throw new Error('NOT_FOUND');
-    const result = await Cipher.decryptRecord(passphrase, note.encrypted);
+    result = await Cipher.decryptRecord(passphrase, note.encrypted);
     plaintext = result.plaintext;
   } catch (e) {
     if (e.message === 'WRONG_PASSPHRASE') {
