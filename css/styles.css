@@ -1644,3 +1644,6 @@ html.dark .cipher-illuminate-btn::before {
 html.dark .remnant-inscribe-btn.edit-active::before {
   filter: grayscale(1) brightness(3) contrast(0.7);
 }
+html.dark .nav-icon-library {
+  filter: grayscale(1) brightness(1.8) contrast(0.85);
+}
