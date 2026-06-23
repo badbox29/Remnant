@@ -387,6 +387,34 @@ function closeModal(id) {
   document.getElementById(id)?.classList.remove('open');
 }
 
+// showConfirm(message, onConfirm) — themed replacement for native confirm().
+// Renders the message in the #modal-confirm overlay, calls onConfirm() if
+// the user clicks OK, does nothing on Cancel. The callback is one-shot:
+// wiring is replaced on every call so stale handlers never fire.
+function showConfirm(message, onConfirm) {
+  const overlay = document.getElementById('modal-confirm');
+  const msgEl   = document.getElementById('confirm-message');
+  const okBtn   = document.getElementById('confirm-ok-btn');
+  const cancelBtn = document.getElementById('confirm-cancel-btn');
+  if (!overlay || !msgEl || !okBtn || !cancelBtn) {
+    // Fallback to native if DOM isn't ready (shouldn't happen post-boot)
+    if (confirm(message)) onConfirm();
+    return;
+  }
+  msgEl.textContent = message;
+  // Replace handlers — cloneNode trick avoids stacking listeners across calls
+  const newOk = okBtn.cloneNode(true);
+  const newCancel = cancelBtn.cloneNode(true);
+  okBtn.replaceWith(newOk);
+  cancelBtn.replaceWith(newCancel);
+  const close = () => closeModal('modal-confirm');
+  newOk.addEventListener('click', () => { close(); onConfirm(); });
+  newCancel.addEventListener('click', close);
+  openModal('modal-confirm');
+  newOk.focus();
+}
+
+
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
   overlay.addEventListener('click', e => {
     if (e.target === overlay) overlay.classList.remove('open');
@@ -1260,9 +1288,9 @@ function updateFragmentControlsVisibility(id) {
 document.getElementById('fragment-promote-btn')?.addEventListener('click', () => {
   const id = App.activeNoteId;
   if (!id || !App._activeIsFragment) return;
-  if (confirm('Promote this fragment to a Remnant? It will move to Loose Remnants as "Untitled Remnant" and stop decaying.')) {
+  showConfirm('Promote this fragment to a Remnant? It will move to Loose Remnants as "Untitled Remnant" and stop decaying.', () => {
     promoteFragmentToRemnant(id);
-  }
+  });
 });
 
 document.getElementById('fragment-merge-btn')?.addEventListener('click', () => {
@@ -2250,9 +2278,9 @@ function buildBookRow(book) {
 
   row.querySelector('[data-action="delete-book"]')?.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (confirm(`Delete "${book.name}"? Scrolls and remnants inside will move to Loose Remnants.`)) {
+    showConfirm(`Delete "${book.name}"? Scrolls and remnants inside will move to Loose Remnants.`, () => {
       deleteBook(book.id);
-    }
+    });
   });
 
   row.addEventListener('dblclick', () => startInlineRename('book', book.id));
@@ -2320,9 +2348,9 @@ function buildChapterRow(chapter) {
 
   row.querySelector('[data-action="delete-chapter"]')?.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (confirm(`Delete "${chapter.name}"? Remnants inside will move to Loose Remnants.`)) {
+    showConfirm(`Delete "${chapter.name}"? Remnants inside will move to Loose Remnants.`, () => {
       deleteChapter(chapter.id);
-    }
+    });
   });
 
   row.addEventListener('dblclick', () => startInlineRename('chapter', chapter.id));
@@ -2393,9 +2421,9 @@ function buildNoteRow(noteSummary) {
     const warning = isCipher
       ? `Delete "${label}"? This Cipher's encrypted content will be permanently deleted — there is no way to recover it afterward, even with the correct passphrase.`
       : `Delete "${label}"? This cannot be undone.`;
-    if (confirm(warning)) {
+    showConfirm(warning, () => {
       deleteNote(noteSummary.id);
-    }
+    });
   });
 
   attachDragHandlers(row, {
@@ -2557,9 +2585,9 @@ function buildFragmentRow(fragment) {
   });
   row.querySelector('[data-action="delete-fragment"]')?.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (confirm('Delete this fragment? This cannot be undone.')) {
+    showConfirm('Delete this fragment? This cannot be undone.', () => {
       deleteFragment(fragment.id);
-    }
+    });
   });
 
   // Right-click → Promote to Remnant. A native browser context menu
@@ -2567,9 +2595,9 @@ function buildFragmentRow(fragment) {
   // needs multiple options) — a single confirm() is enough for one action.
   row.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    if (confirm('Promote this fragment to a Remnant? It will move to Loose Remnants as "Untitled Remnant" and stop decaying.')) {
+    showConfirm('Promote this fragment to a Remnant? It will move to Loose Remnants as "Untitled Remnant" and stop decaying.', () => {
       promoteFragmentToRemnant(fragment.id);
-    }
+    });
   });
 
   attachFragmentDragHandlers(row, fragment.id);
@@ -2626,9 +2654,9 @@ function attachFragmentDragHandlers(rowEl, fragmentId) {
 function confirmAndMergeFragments(mergedId, survivorId) {
   const mergedLabel = fragmentPreviewLabel(App.fragmentSummaries[mergedId] || {});
   const survivorLabel = fragmentPreviewLabel(App.fragmentSummaries[survivorId] || {});
-  if (confirm(`Merge "${mergedLabel}" into "${survivorLabel}"? The first fragment will be appended and then deleted. This cannot be undone.`)) {
+  showConfirm(`Merge "${mergedLabel}" into "${survivorLabel}"? The first fragment will be appended and then deleted. This cannot be undone.`, () => {
     mergeFragmentsAndRefresh(mergedId, survivorId);
-  }
+  });
 }
 
 async function mergeFragmentsAndRefresh(mergedId, survivorId) {
