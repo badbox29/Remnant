@@ -1483,6 +1483,34 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   .nav-panel-title { font-size: .92rem; }
 }
 
+@media (max-width: 640px) {
+  /* Title takes its own full-width line; action buttons wrap below it */
+  .note-title-row {
+    flex-wrap: wrap;
+  }
+  .note-title-input {
+    width: 100%;
+    flex-basis: 100%;
+  }
+  /* When title is hidden (Fragments), collapse its space so buttons
+     sit at the top of the row rather than below an invisible gap */
+  .note-title-input[style*="visibility: hidden"] {
+    flex-basis: 0;
+    width: 0;
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+  }
+  /* Buttons on the second line — left-aligned, compact */
+  .cipher-illuminate-btn,
+  .cipher-obscure-btn,
+  .remnant-inscribe-btn,
+  .fragment-merge-btn,
+  .fragment-promote-btn {
+    margin-bottom: .35rem;
+  }
+}
+
 /* Tab label truncation on mobile — with .tab-bar's horizontal scroll
    (see .tab-bar, overflow-x: auto), one long title can push several
    other tabs off-screen, which is much more awkward to recover from by
