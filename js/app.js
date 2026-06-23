@@ -461,7 +461,7 @@ function initBodyEditor() {
   });
 
   // Quill edit-mode toggle button
-  document.getElementById('remnant-edit-btn')?.addEventListener('click', (e) => {
+  document.getElementById('remnant-inscribe-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
     if (App._remnantEditMode) {
       exitRemnantEditMode(true);
@@ -535,7 +535,7 @@ function enterRemnantEditMode() {
   // Show toolbar
   App._easyMDEWrapperEl?.classList.remove('body-read-mode');
   // Mark quill button active
-  const quillBtn = document.getElementById('remnant-edit-btn');
+  const quillBtn = document.getElementById('remnant-inscribe-btn');
   quillBtn?.classList.add('edit-active');
   // Focus editor at top (not at click position — spec)
   App._easyMDE?.codemirror.setCursor({line: 0, ch: 0});
@@ -550,7 +550,7 @@ function exitRemnantEditMode(save) {
   // Hide toolbar
   App._easyMDEWrapperEl?.classList.add('body-read-mode');
   // Unmark quill button
-  const quillBtn = document.getElementById('remnant-edit-btn');
+  const quillBtn = document.getElementById('remnant-inscribe-btn');
   quillBtn?.classList.remove('edit-active');
   // Blur to remove any cursor remnant
   App._easyMDE?.codemirror.getInputField()?.blur();
@@ -559,26 +559,23 @@ function exitRemnantEditMode(save) {
 
 // Apply read or edit mode chrome for plain Remnants.
 // Called from updateCipherControlsVisibility when note type is determined.
-function applyRemnantBodyMode(isPlainRemnant) {
-  const quillBtn = document.getElementById('remnant-edit-btn');
-  if (!quillBtn) return;
-  if (!isPlainRemnant) {
-    // Not a plain Remnant — hide quill, ensure container NOT in read-mode class
-    // (Ciphers/Fragments manage their own body state independently)
-    quillBtn.style.display = 'none';
+function applyRemnantBodyMode(showInscribe) {
+  const btn = document.getElementById('remnant-inscribe-btn');
+  if (!btn) return;
+  if (!showInscribe) {
+    // Cipher or empty — hide Inscribe, strip read-mode class
+    btn.style.display = 'none';
     App._easyMDEWrapperEl?.classList.remove('body-read-mode');
     return;
   }
-  // Plain Remnant: show quill, apply current mode
-  quillBtn.style.display = '';
+  // Plain Remnant or Fragment: show Inscribe button
+  btn.style.display = '';
   if (App._remnantEditMode) {
     App._easyMDEWrapperEl?.classList.remove('body-read-mode');
-    quillBtn.classList.add('edit-active');
+    btn.classList.add('edit-active');
   } else {
     App._easyMDEWrapperEl?.classList.add('body-read-mode');
-    quillBtn.classList.remove('edit-active');
-    // Ensure CodeMirror is actually read-only (setBodyDisabled(false) was
-    // called before us by the Remnant branch — we need to re-disable cursor)
+    btn.classList.remove('edit-active');
     App._easyMDE?.codemirror.setOption('readOnly', 'nocursor');
   }
 }
@@ -1950,6 +1947,8 @@ async function createFragmentAndOpen() {
 
 function setActiveFragment(id) {
   if (App._cipherKeyboardMode) exitCipherKeyboardMode();
+  if (App._remnantEditMode) exitRemnantEditMode(false);
+  App._remnantEditMode = false;
   App.activeNoteId = id;
   // Fragment active-tab id never touches App.data.tabState — same
   // structural reasoning as Cipher tabs (see setActiveNote).
@@ -3001,10 +3000,9 @@ function updateCipherControlsVisibility(id) {
   viewerEl.style.display = showViewer ? '' : 'none';
   bodyEl.style.display   = showViewer ? 'none' : '';
 
-  // Plain Remnant read/edit mode: quill button + toolbar visibility.
-  // Only applies when id refers to an open, non-Cipher note.
-  const isPlainRemnant = !!id && !isCipher && !App._activeIsFragment;
-  applyRemnantBodyMode(isPlainRemnant);
+  // Inscribe button: shown for plain Remnants and Fragments (not Ciphers, not empty)
+  const showInscribe = !!id && !isCipher;
+  applyRemnantBodyMode(showInscribe);
 }
 
 function renderActiveNote() {
@@ -3069,6 +3067,7 @@ function renderActiveNoteInner() {
       setBodyText(fragment.content || '');
       App._bodyShowingNoteId = id;
     }
+    updateCipherControlsVisibility(id); // hides Cipher chrome, shows Inscribe button for Fragment
     return;
   }
   updateFragmentControlsVisibility(null); // hide Merge/Promote buttons whenever a non-Fragment tab is active
