@@ -667,12 +667,13 @@
      Message and callbacks wired at runtime by showConfirm() in app.js.
      ════════════════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-message">
-  <div class="modal modal-sm">
-    <div class="modal-body" style="padding-top:1.4rem;">
-      <p class="f13 lh" id="confirm-message" style="margin:0 0 1.25rem 0;"></p>
-      <div class="form-actions">
-        <button class="btn btn-ghost" id="confirm-cancel-btn">Cancel</button>
-        <button class="btn btn-primary" id="confirm-ok-btn">OK</button>
+  <div class="modal modal-confirm-dialog">
+    <div class="modal-body" style="padding:1.5rem 1.6rem 1.4rem;">
+      <p class="confirm-message-text" id="confirm-message"></p>
+      <div class="confirm-divider"><span>✦</span></div>
+      <div class="confirm-actions">
+        <button class="btn btn-ghost btn-sm" id="confirm-cancel-btn">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="confirm-ok-btn">OK</button>
       </div>
     </div>
   </div>
