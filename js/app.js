@@ -3241,6 +3241,19 @@ function attachCipherObscuredViewerTracking() {
   // exits back to normal hover-follow with everything re-obscured.
   viewerEl.addEventListener('mousemove', (e) => queueSync(e.clientY));
 
+  viewerEl.addEventListener('mouseleave', () => {
+    // Re-obscure the currently-revealed row when the pointer leaves the
+    // viewer entirely — without this, the last hovered row stays decrypted
+    // even after the mouse moves away to the scratchpad or elsewhere.
+    const rows = viewerEl.querySelectorAll('.cipher-obscured-row');
+    if (cipherViewerActiveRowIndex >= 0 && rows[cipherViewerActiveRowIndex]) {
+      deactivateRow(rows[cipherViewerActiveRowIndex]);
+    }
+    rows.forEach(r => r.classList.remove('adjacent'));
+    cipherViewerActiveRowIndex = -1;
+    ++cipherViewerDecryptToken; // invalidate any in-flight decrypt
+  });
+
   viewerEl.addEventListener('click', () => {
     // Keyboard navigation mode is desktop-only. Below this width, a tap
     // synthesizes a native 'click' event the same as a real click would
