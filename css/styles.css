@@ -1623,3 +1623,24 @@ html.dark .EasyMDEContainer .editor-preview {
   color: var(--ink);
 }
 html.dark .CodeMirror-scroll { background: var(--paper); }
+
+/* ── Dark mode icon recolouring ───────────────────────────────────────
+   The nav, pin, inscribe, and illuminate icons are embedded PNG artwork
+   with warm brass/gold tones. In dark mode we desaturate and brighten
+   them to a silver-grey to match the --brass silver palette.
+   grayscale(1) strips warmth; brightness/contrast lands on silver.
+   The edit-active inscribe icon already uses brightness(2) to invert
+   to light — in dark mode we keep that override via the existing rule
+   (.remnant-inscribe-btn.edit-active::before) which is not scoped to
+   html.dark, so we add a dark-specific one to keep it bright. */
+html.dark .nav-row-icon,
+html.dark .nav-pin-icon {
+  filter: grayscale(1) brightness(1.8) contrast(0.85);
+}
+html.dark .remnant-inscribe-btn::before,
+html.dark .cipher-illuminate-btn::before {
+  filter: grayscale(1) brightness(1.8) contrast(0.85) opacity(0.8);
+}
+html.dark .remnant-inscribe-btn.edit-active::before {
+  filter: grayscale(1) brightness(3) contrast(0.7);
+}
