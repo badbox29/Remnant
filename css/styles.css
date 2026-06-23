@@ -15,8 +15,12 @@
   --border:      #D8CFC0;
   --red:         #A8443B;
   --oxide:       #7A3B2E;
+  --oxide-hover: #8a352e;       /* cipher obscure btn hover — one shade darker than --oxide */
   --green:       #5C7A5E;
   --blue-pale:   #DDE6E2;
+  --blue-text:   #2d5246;       /* auth badge google text */
+  --badge-token-bg: #F0E6D2;   /* auth badge token background */
+  --shadow-ink:  43,40,35;      /* RGB triplet for rgba() shadow/overlay uses */
 
   /* Aliases referenced inline by auth.js (ported from Refectory, where
      these named a slightly different palette). Defining them here means
@@ -50,8 +54,12 @@ html.dark {
   --border:      #38352F;
   --red:         #C0524A;
   --oxide:       #9A5244;
+  --oxide-hover: #b05a50;
   --green:       #6A8A6C;
   --blue-pale:   #2A3530;
+  --blue-text:   #8abfaf;       /* auth badge google text — lightened for dark bg */
+  --badge-token-bg: #2E2A22;   /* auth badge token background */
+  --shadow-ink:  0,0,0;         /* shadows use pure black in dark mode */
   --gold2:       var(--brass);
   --cream-dark:  var(--paper-dark);
 }
@@ -274,7 +282,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   width: 300px;
   background: var(--paper);
   border-right: 1px solid var(--border);
-  box-shadow: 6px 0 24px rgba(43,40,35,.12);
+  box-shadow: 6px 0 24px rgba(var(--shadow-ink),.12);
   display: flex;
   flex-direction: column;
   transform: translateX(-100%);
@@ -308,7 +316,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   /* Darkened from the original .18 alpha — pop-out mode should read
      clearly as "this content is now in the background," not just
      faintly tinted. */
-  background: rgba(43,40,35,.42);
+  background: rgba(var(--shadow-ink),.42);
   z-index: 35;
 }
 
@@ -738,7 +746,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   background-position: center;
 }
 .cipher-obscure-btn { background: var(--red); border-color: var(--red); }
-.cipher-obscure-btn:hover { background: #8a352e; } /* darker red on hover, no token exists yet for this — small one-off */
+.cipher-obscure-btn:hover { background: var(--oxide-hover); } /* no separate token needed — see --oxide-hover in :root */
 
 .cipher-illuminate-banner {
   background: var(--red);
@@ -1119,7 +1127,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(43,40,35,.45);
+  background: rgba(var(--shadow-ink),.45);
   align-items: center;
   justify-content: center;
   z-index: 100;
@@ -1144,7 +1152,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   max-width: 520px;
   max-height: 86vh;
   overflow-y: auto;
-  box-shadow: 0 12px 40px rgba(43,40,35,.25);
+  box-shadow: 0 12px 40px rgba(var(--shadow-ink),.25);
 }
 .modal-sm { max-width: 460px; }
 .modal-confirm-dialog { max-width: 360px; }
@@ -1437,8 +1445,8 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   vertical-align: middle;
 }
 .auth-badge-guest  { background: var(--paper-dark); color: var(--muted); }
-.auth-badge-token  { background: #F0E6D2; color: var(--brass-dark); }
-.auth-badge-google { background: var(--blue-pale); color: #2d5246; }
+.auth-badge-token  { background: var(--badge-token-bg); color: var(--brass-dark); }
+.auth-badge-google { background: var(--blue-pale); color: var(--blue-text); }
 
 .auth-google-info {
   display: flex;
@@ -1491,7 +1499,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
     height: auto;
     border-top: none;
     border-left: 1px solid var(--border);
-    box-shadow: -6px 0 24px rgba(43,40,35,.12);
+    box-shadow: -6px 0 24px rgba(var(--shadow-ink),.12);
     transform: translateX(100%);
     transition: transform .2s ease;
     z-index: 45;
@@ -1502,7 +1510,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
     display: none;
     position: absolute;
     inset: 0;
-    background: rgba(43,40,35,.42);
+    background: rgba(var(--shadow-ink),.42);
     z-index: 44;
   }
   .scratchpad-column.open ~ .scratchpad-scrim { display: block; }
@@ -1542,11 +1550,10 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   /* Title takes its own full-width line; action buttons wrap below it */
   .note-title-row {
     flex-wrap: wrap;
-    justify-content: flex-end;
   }
   .note-title-input {
-    flex: 0 0 100%;
     width: 100%;
+    flex-basis: 100%;
   }
   /* When title is hidden (Fragments), collapse its space so buttons
      sit at the top of the row rather than below an invisible gap */
@@ -1557,7 +1564,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
     padding: 0;
     margin: 0;
   }
-  /* Buttons on the second line — right-aligned, compact */
+  /* Buttons on the second line — left-aligned, compact */
   .cipher-illuminate-btn,
   .cipher-obscure-btn,
   .remnant-inscribe-btn,
