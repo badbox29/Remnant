@@ -564,6 +564,7 @@ function enterRemnantEditMode() {
   App._easyMDEWrapperEl?.classList.remove('body-read-mode');
   const btn = document.getElementById('remnant-inscribe-btn');
   btn?.classList.add('edit-active');
+  if (btn) btn.textContent = 'Rest';
   App._easyMDE?.codemirror.setCursor({line: 0, ch: 0});
   App._easyMDE?.codemirror.focus();
 }
@@ -577,6 +578,7 @@ function exitRemnantEditMode(save) {
   App._easyMDEWrapperEl?.classList.add('body-read-mode');
   const btn = document.getElementById('remnant-inscribe-btn');
   btn?.classList.remove('edit-active');
+  if (btn) btn.textContent = 'Inscribe';
 }
 
 // enterReadModeForNewNote() — called when rendering a fresh Remnant/Fragment
@@ -588,6 +590,7 @@ function enterReadModeForNewNote() {
   App._easyMDEWrapperEl?.classList.add('body-read-mode');
   const btn = document.getElementById('remnant-inscribe-btn');
   btn?.classList.remove('edit-active');
+  if (btn) btn.textContent = 'Inscribe';
 }
 
 // Apply read or edit mode chrome for plain Remnants.
@@ -610,12 +613,14 @@ function applyRemnantBodyMode(showInscribe) {
     if (App._easyMDE?.isPreviewActive()) App._easyMDE.togglePreview();
     App._easyMDEWrapperEl?.classList.remove('body-read-mode');
     btn.classList.add('edit-active');
+    btn.textContent = 'Rest';
   } else {
     // Read mode — ensure preview is on. Defer one rAF so EasyMDE has
     // finished rendering newly-set content before toggling to preview,
     // otherwise the preview div can come up blank on first open.
     App._easyMDEWrapperEl?.classList.add('body-read-mode');
     btn.classList.remove('edit-active');
+    btn.textContent = 'Inscribe';
     if (App._easyMDE && !App._easyMDE.isPreviewActive()) {
       requestAnimationFrame(() => {
         // Re-check: user may have clicked Inscribe in the same frame
