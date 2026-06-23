@@ -107,6 +107,7 @@ const App = {
   // a separate raw-text copy or reaches into its DOM; .value()/
   // .value(str) are the only interface used.
   _easyMDE: null, // the live EasyMDE instance, created once on boot and reused across every note/Fragment/Cipher — see initBodyEditor()
+  _remnantEditMode: false, // true while a plain Remnant is in edit mode (toolbar visible, cursor enabled); false = read mode (default)
 };
 
 // Default data shape (localStorage). Note CONTENT is never stored here —
@@ -458,6 +459,25 @@ function initBodyEditor() {
   App._easyMDE.codemirror.on('cursorActivity', () => {
     if (isIlluminated(App.activeNoteId)) resetIlluminateIdleTimer();
   });
+
+  // Quill edit-mode toggle button
+  document.getElementById('remnant-edit-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (App._remnantEditMode) {
+      exitRemnantEditMode(true);
+    } else {
+      enterRemnantEditMode();
+    }
+  });
+
+  // Click-outside the body wrap exits edit mode and saves
+  document.addEventListener('click', (e) => {
+    if (!App._remnantEditMode) return;
+    const bodyWrap = document.getElementById('note-body-wrap');
+    if (bodyWrap && !bodyWrap.contains(e.target)) {
+      exitRemnantEditMode(true);
+    }
+  });
 }
 
 function getBodyEl() {
@@ -502,7 +522,68 @@ function setBodyPlaceholder(text) {
   App._easyMDE.codemirror.setOption('placeholder', text);
 }
 
-function generateNoteId() {
+// ── Remnant read/edit mode ──────────────────────────────────────────
+// Plain Remnants default to read mode: toolbar hidden, cursor disabled.
+// The gold quill button enters edit mode; clicking again or outside exits.
+// Ciphers and Fragments never use this — they have their own patterns.
+
+function enterRemnantEditMode() {
+  if (App._remnantEditMode) return;
+  App._remnantEditMode = true;
+  // Enable cursor / editing
+  App._easyMDE?.codemirror.setOption('readOnly', false);
+  // Show toolbar
+  App._easyMDEWrapperEl?.classList.remove('body-read-mode');
+  // Mark quill button active
+  const quillBtn = document.getElementById('remnant-edit-btn');
+  quillBtn?.classList.add('edit-active');
+  // Focus editor at top (not at click position — spec)
+  App._easyMDE?.codemirror.setCursor({line: 0, ch: 0});
+  App._easyMDE?.codemirror.focus();
+}
+
+function exitRemnantEditMode(save) {
+  if (!App._remnantEditMode) return;
+  App._remnantEditMode = false;
+  // Disable cursor
+  App._easyMDE?.codemirror.setOption('readOnly', 'nocursor');
+  // Hide toolbar
+  App._easyMDEWrapperEl?.classList.add('body-read-mode');
+  // Unmark quill button
+  const quillBtn = document.getElementById('remnant-edit-btn');
+  quillBtn?.classList.remove('edit-active');
+  // Blur to remove any cursor remnant
+  App._easyMDE?.codemirror.getInputField()?.blur();
+  if (save) scheduleSaveActive();
+}
+
+// Apply read or edit mode chrome for plain Remnants.
+// Called from updateCipherControlsVisibility when note type is determined.
+function applyRemnantBodyMode(isPlainRemnant) {
+  const quillBtn = document.getElementById('remnant-edit-btn');
+  if (!quillBtn) return;
+  if (!isPlainRemnant) {
+    // Not a plain Remnant — hide quill, ensure container NOT in read-mode class
+    // (Ciphers/Fragments manage their own body state independently)
+    quillBtn.style.display = 'none';
+    App._easyMDEWrapperEl?.classList.remove('body-read-mode');
+    return;
+  }
+  // Plain Remnant: show quill, apply current mode
+  quillBtn.style.display = '';
+  if (App._remnantEditMode) {
+    App._easyMDEWrapperEl?.classList.remove('body-read-mode');
+    quillBtn.classList.add('edit-active');
+  } else {
+    App._easyMDEWrapperEl?.classList.add('body-read-mode');
+    quillBtn.classList.remove('edit-active');
+    // Ensure CodeMirror is actually read-only (setBodyDisabled(false) was
+    // called before us by the Remnant branch — we need to re-disable cursor)
+    App._easyMDE?.codemirror.setOption('readOnly', 'nocursor');
+  }
+}
+
+
   return 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
@@ -545,6 +626,11 @@ async function openNoteInTab(id) {
 
 function setActiveNote(id) {
   if (App._cipherKeyboardMode && App.activeNoteId !== id) exitCipherKeyboardMode();
+  // Switching to a different note resets read/edit mode to read (default).
+  if (id !== App.activeNoteId && App._remnantEditMode) {
+    exitRemnantEditMode(false); // don't re-save — the departing note already auto-saves on change
+  }
+  App._remnantEditMode = false; // always reset regardless of prior state
   App.activeNoteId = id;
   App._activeIsFragment = false; // setActiveNote is only ever called for Remnants/Ciphers, never Fragments
   // Only a plain Remnant's active-tab id is ever written into App.data —
@@ -2914,6 +3000,11 @@ function updateCipherControlsVisibility(id) {
   const showViewer = isCipher && unlocked && !illuminated;
   viewerEl.style.display = showViewer ? '' : 'none';
   bodyEl.style.display   = showViewer ? 'none' : '';
+
+  // Plain Remnant read/edit mode: quill button + toolbar visibility.
+  // Only applies when id refers to an open, non-Cipher note.
+  const isPlainRemnant = !!id && !isCipher && !App._activeIsFragment;
+  applyRemnantBodyMode(isPlainRemnant);
 }
 
 function renderActiveNote() {
