@@ -12,6 +12,8 @@
 
 <link rel="stylesheet" href="js/vendor/easymde.min.css" />
 <link rel="stylesheet" href="css/styles.css" />
+<!-- Apply dark mode before first paint to prevent flash of wrong theme -->
+<script>try{if(JSON.parse(localStorage.getItem('rmt_darkMode')))document.documentElement.classList.add('dark')}catch(e){}</script>
 </head>
 <body>
 
@@ -35,6 +37,7 @@
     <span id="sync-indicator" class="sync-indicator" style="display:none;" title="Unsynced changes">●</span>
     <button class="btn btn-sm btn-outline" id="save-session-btn" style="display:none;">Save Session</button>
     <button class="btn btn-sm btn-ghost" id="open-settings-btn">Settings</button>
+    <button class="btn-icon theme-toggle-btn" id="theme-toggle-btn" title="Toggle dark mode"></button>
   </div>
 </header>
 
