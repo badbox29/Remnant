@@ -15,8 +15,12 @@
   --border:      #D8CFC0;
   --red:         #A8443B;
   --oxide:       #7A3B2E;
+  --oxide-hover: #8a352e;
   --green:       #5C7A5E;
   --blue-pale:   #DDE6E2;
+  --blue-text:   #2d5246;
+  --badge-token-bg: #F0E6D2;
+  --shadow-ink:  43,40,35;
 
   /* Aliases referenced inline by auth.js (ported from Refectory, where
      these named a slightly different palette). Defining them here means
@@ -50,8 +54,12 @@ html.dark {
   --border:      #38352F;
   --red:         #C0524A;
   --oxide:       #9A5244;
+  --oxide-hover: #b05a50;
   --green:       #6A8A6C;
   --blue-pale:   #2A3530;
+  --blue-text:   #8abfaf;
+  --badge-token-bg: #2E2A22;
+  --shadow-ink:  0,0,0;
   --gold2:       var(--brass);
   --cream-dark:  var(--paper-dark);
 }
@@ -274,7 +282,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   width: 300px;
   background: var(--paper);
   border-right: 1px solid var(--border);
-  box-shadow: 6px 0 24px rgba(43,40,35,.12);
+  box-shadow: 6px 0 24px rgba(var(--shadow-ink),.12);
   display: flex;
   flex-direction: column;
   transform: translateX(-100%);
@@ -308,7 +316,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   /* Darkened from the original .18 alpha — pop-out mode should read
      clearly as "this content is now in the background," not just
      faintly tinted. */
-  background: rgba(43,40,35,.42);
+  background: rgba(var(--shadow-ink),.42);
   z-index: 35;
 }
 
@@ -738,7 +746,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   background-position: center;
 }
 .cipher-obscure-btn { background: var(--red); border-color: var(--red); }
-.cipher-obscure-btn:hover { background: #8a352e; } /* darker red on hover, no token exists yet for this — small one-off */
+.cipher-obscure-btn:hover { background: var(--oxide-hover); }
 
 .cipher-illuminate-banner {
   background: var(--red);
@@ -1119,7 +1127,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(43,40,35,.45);
+  background: rgba(var(--shadow-ink),.45);
   align-items: center;
   justify-content: center;
   z-index: 100;
@@ -1144,7 +1152,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   max-width: 520px;
   max-height: 86vh;
   overflow-y: auto;
-  box-shadow: 0 12px 40px rgba(43,40,35,.25);
+  box-shadow: 0 12px 40px rgba(var(--shadow-ink),.25);
 }
 .modal-sm { max-width: 460px; }
 .modal-confirm-dialog { max-width: 360px; }
@@ -1437,8 +1445,8 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   vertical-align: middle;
 }
 .auth-badge-guest  { background: var(--paper-dark); color: var(--muted); }
-.auth-badge-token  { background: #F0E6D2; color: var(--brass-dark); }
-.auth-badge-google { background: var(--blue-pale); color: #2d5246; }
+.auth-badge-token  { background: var(--badge-token-bg); color: var(--brass-dark); }
+.auth-badge-google { background: var(--blue-pale); color: var(--blue-text); }
 
 .auth-google-info {
   display: flex;
@@ -1491,7 +1499,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
     height: auto;
     border-top: none;
     border-left: 1px solid var(--border);
-    box-shadow: -6px 0 24px rgba(43,40,35,.12);
+    box-shadow: -6px 0 24px rgba(var(--shadow-ink),.12);
     transform: translateX(100%);
     transition: transform .2s ease;
     z-index: 45;
@@ -1502,7 +1510,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
     display: none;
     position: absolute;
     inset: 0;
-    background: rgba(43,40,35,.42);
+    background: rgba(var(--shadow-ink),.42);
     z-index: 44;
   }
   .scratchpad-column.open ~ .scratchpad-scrim { display: block; }
@@ -1615,3 +1623,21 @@ html.dark .EasyMDEContainer .editor-preview {
   color: var(--ink);
 }
 html.dark .CodeMirror-scroll { background: var(--paper); }
+
+/* ── Dark mode icon recolouring ───────────────────────────────────────
+   Nav, pin, inscribe, and illuminate icons are embedded PNG artwork
+   with warm brass/gold tones. Desaturate + brighten to silver-grey. */
+html.dark .nav-row-icon,
+html.dark .nav-pin-icon {
+  filter: grayscale(1) brightness(1.8) contrast(0.85);
+}
+html.dark .remnant-inscribe-btn::before,
+html.dark .cipher-illuminate-btn::before {
+  filter: grayscale(1) brightness(1.8) contrast(0.85) opacity(0.8);
+}
+html.dark .remnant-inscribe-btn.edit-active::before {
+  filter: grayscale(1) brightness(3) contrast(0.7);
+}
+html.dark .nav-icon-library {
+  filter: grayscale(1) brightness(1.8) contrast(0.85);
+}
