@@ -20,6 +20,7 @@
   --blue-pale:   #DDE6E2;
   --blue-text:   #2d5246;
   --badge-token-bg: #F0E6D2;
+  --gold-vivid:  #D4A72C;
   --shadow-ink:  43,40,35;
 
   /* Aliases referenced inline by auth.js (ported from Refectory, where
@@ -59,6 +60,7 @@ html.dark {
   --blue-pale:   #2A3530;
   --blue-text:   #8abfaf;
   --badge-token-bg: #2E2A22;
+  --gold-vivid:  #D4A72C;
   --shadow-ink:  0,0,0;
   --gold2:       var(--brass);
   --cream-dark:  var(--paper-dark);
@@ -467,7 +469,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 .nav-row-inline-add:hover {
   opacity: 1;
-  color: #D4A72C;
+  color: var(--gold-vivid);
   text-shadow: 0 0 6px rgba(212, 167, 44, .55);
   transform: scale(1.15);
   background: transparent;
