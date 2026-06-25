@@ -447,24 +447,30 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 .nav-row-add:hover { color: var(--brass-dark); }
 
-/* Inline "+ Scroll" / "+" buttons on nav row headers — same visual register
-   as the Library-level "+ Corpus" (btn-ghost) but living inside a tree row.
-   Always visible; flex-shrink:0 so long names truncate, not the button. */
+/* Inline "+" buttons on nav row headers — three-state progressive reveal.
+   Idle: nearly invisible. Row hover: visible but quiet. + hover: gold glow. */
 .nav-row-inline-add {
   flex-shrink: 0;
   font-size: .75rem;
   font-weight: 400;
   font-style: italic;
-  color: var(--brass);
+  color: var(--ink);
+  opacity: .38;
   padding: .05rem .3rem;
   border-radius: var(--r-sm);
   margin-left: .15rem;
   cursor: pointer;
-  transition: color .12s, background .12s;
+  transition: opacity .15s, color .12s, transform .12s, text-shadow .12s;
+}
+.nav-row:hover .nav-row-inline-add {
+  opacity: .72;
 }
 .nav-row-inline-add:hover {
-  color: var(--brass-dark);
-  background: var(--border);
+  opacity: 1;
+  color: #D4A72C;
+  text-shadow: 0 0 6px rgba(212, 167, 44, .55);
+  transform: scale(1.15);
+  background: transparent;
 }
 
 /* Position-aware context menu for scroll-level "+" */
