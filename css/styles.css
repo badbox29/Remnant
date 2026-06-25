@@ -553,16 +553,19 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 .nav-row-action-btn {
   font-size: .8rem;
   font-style: normal;
-  color: var(--muted);
+  color: var(--muted) !important;
   padding: .1rem .25rem;
   border-radius: var(--r-sm);
   line-height: 1;
+  cursor: pointer;
   transition: color .12s, background .12s;
 }
-.nav-row-action-btn:hover { color: var(--oxide); background: transparent; }
+.nav-row-action-btn:hover { color: var(--oxide) !important; background: transparent; }
 
 /* Drag-and-drop visual feedback */
 .nav-row[draggable="true"] { cursor: grab; }
+.nav-row[draggable="true"] .nav-row-action-btn { cursor: pointer; }
+.nav-row[draggable="true"] .nav-row-inline-add { cursor: pointer; }
 .nav-row.dragging { opacity: .4; }
 
 .nav-row.drop-target-into {
