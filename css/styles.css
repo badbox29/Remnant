@@ -601,7 +601,21 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   border-bottom: 1px solid var(--border);
   background: var(--paper-dark);
   flex-shrink: 0;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color .4s ease;
 }
+.tab-bar:hover {
+  scrollbar-color: var(--border) transparent;
+}
+.tab-bar::-webkit-scrollbar { height: 3px; }
+.tab-bar::-webkit-scrollbar-track { background: transparent; }
+.tab-bar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+  transition: background .4s ease;
+}
+.tab-bar:hover::-webkit-scrollbar-thumb { background: var(--border); }
 
 .tab {
   display: flex;
@@ -783,6 +797,24 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   align-items: center;
   gap: .6rem;
   margin-bottom: .2rem;
+}
+
+/* Gradient rule flourish beneath the title — fades from transparent at
+   the edges to gold-vivid at the center, giving a subtle manuscript feel.
+   Rendered as a block below the title row rather than a border, so it
+   sits independently of the input's own padding. */
+.note-title-flourish {
+  height: 1px;
+  margin: 0 0 1rem 0;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    var(--gold-vivid) 35%,
+    var(--gold-vivid) 65%,
+    transparent 100%
+  );
+  opacity: .35;
+  border: none;
 }
 
 .note-title-input {
