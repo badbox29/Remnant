@@ -799,18 +799,15 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   margin-bottom: .2rem;
 }
 
-/* Gradient rule flourish beneath the title — fades from transparent at
-   the edges to gold-vivid at the center, giving a subtle manuscript feel.
-   Rendered as a block below the title row rather than a border, so it
-   sits independently of the input's own padding. */
+/* Gradient rule flourish beneath the title — starts solid from the left
+   (anchored under the title text) and fades out to the right. */
 .note-title-flourish {
   height: 1px;
   margin: 0 0 1rem 0;
   background: linear-gradient(
     to right,
-    transparent 0%,
-    var(--gold-vivid) 35%,
-    var(--gold-vivid) 65%,
+    var(--gold-vivid) 0%,
+    var(--gold-vivid) 40%,
     transparent 100%
   );
   opacity: .35;
@@ -898,11 +895,17 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   opacity: .8;
 }
 .remnant-inscribe-btn.edit-active {
-  background: var(--brass-dark);
-  border-color: var(--brass-dark);
-  color: var(--paper);
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  opacity: .55;
+  transition: opacity .15s, color .15s;
 }
-.remnant-inscribe-btn.edit-active::before { filter: brightness(2); }
+.remnant-inscribe-btn.edit-active:hover {
+  opacity: 1;
+  color: var(--ink);
+}
+.remnant-inscribe-btn.edit-active::before { filter: grayscale(1) brightness(.7); }
 
 /* Hide the EasyMDE toolbar in read mode */
 .EasyMDEContainer.body-read-mode .editor-toolbar {
@@ -1743,7 +1746,7 @@ html.dark .cipher-illuminate-btn::before {
   filter: grayscale(1) brightness(1.8) contrast(0.85) opacity(0.8);
 }
 html.dark .remnant-inscribe-btn.edit-active::before {
-  filter: grayscale(1) brightness(3) contrast(0.7);
+  filter: grayscale(1) brightness(1.4) contrast(0.7) opacity(0.6);
 }
 html.dark .nav-icon-library {
   filter: grayscale(1) brightness(1.8) contrast(0.85);
