@@ -3661,8 +3661,13 @@ function attachCipherObscuredViewerTracking() {
     enterCipherKeyboardMode();
   });
 
+  let _touchStartY = 0, _touchStartX = 0, _touchIsScroll = false;
+
   viewerEl.addEventListener('touchstart', (e) => {
-    // Non-passive touchstart required so touchmove can preventDefault
+    if (!e.touches?.length) return;
+    _touchStartX = e.touches[0].clientX;
+    _touchStartY = e.touches[0].clientY;
+    _touchIsScroll = false; // reset — decide on first touchmove
   }, { passive: false });
 
   viewerEl.addEventListener('touchmove', (e) => {
@@ -3671,15 +3676,36 @@ function attachCipherObscuredViewerTracking() {
     const y = e.touches[0].clientY;
     App._lastPointerX = x;
 
-    // Prevent browser from scrolling the page — we handle all scroll
-    // ourselves via edge zones. Only suppress if viewer is active.
-    e.preventDefault();
+    // On first move, decide: is this a scroll gesture or a read gesture?
+    // Predominantly vertical = scroll; horizontal or ambiguous = read (mist move).
+    if (!_touchIsScroll) {
+      const dx = Math.abs(x - _touchStartX);
+      const dy = Math.abs(y - _touchStartY);
+      if (dy > dx && dy > 6) {
+        _touchIsScroll = true;
+      }
+    }
 
+    if (_touchIsScroll) {
+      // Let edge-zone auto-scroll handle it; don't preventDefault so
+      // native scroll works in the middle of the document
+      updateTouchEdgeAutoScroll(viewerEl, y);
+      return;
+    }
+
+    // Read gesture — suppress native scroll, move mist only
+    e.preventDefault();
     queueSync(y - TOUCH_REVEAL_OFFSET_PX);
-    updateTouchEdgeAutoScroll(viewerEl, y);
   }, { passive: false });
-  viewerEl.addEventListener('touchend', stopTouchEdgeAutoScroll);
-  viewerEl.addEventListener('touchcancel', stopTouchEdgeAutoScroll);
+
+  viewerEl.addEventListener('touchend', (e) => {
+    stopTouchEdgeAutoScroll();
+    _touchIsScroll = false;
+  });
+  viewerEl.addEventListener('touchcancel', (e) => {
+    stopTouchEdgeAutoScroll();
+    _touchIsScroll = false;
+  });
 
   // Native scroll — the viewer is a real scroll container with real
   // per-row content height, so scrolling just works; only the active-
