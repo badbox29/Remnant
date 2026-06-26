@@ -1117,6 +1117,24 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   z-index: 10;
 }
 
+/* Touch capture layer — transparent, covers the viewer exactly,
+   touch-action:none so the browser never attempts native scroll.
+   Only present on touch devices; on desktop pointer-events:none
+   so mouse events fall through to the viewer normally. */
+.cipher-touch-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 11;
+  pointer-events: none; /* desktop: fall through to viewer */
+  touch-action: none;   /* mobile: we own all touch */
+}
+@media (hover: none) and (pointer: coarse) {
+  .cipher-touch-layer {
+    pointer-events: auto;
+  }
+}
+
 /* ── Scratchpad ──────────────────────────────────────────────────── */
 
 .scratchpad-header {
