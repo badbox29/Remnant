@@ -1111,8 +1111,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
    handling all masking. pointer-events:none so scroll/mouse events
    still reach the viewer underneath. */
 .cipher-mist-canvas {
-  position: absolute;
-  inset: 0;
+  position: fixed;
   pointer-events: none;
   z-index: 10;
 }
