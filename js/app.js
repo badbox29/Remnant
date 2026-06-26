@@ -3683,6 +3683,7 @@ function attachCipherObscuredViewerTracking() {
   // note-body-wrap has overflow:hidden (required for EasyMDE layout), which
   // means wheel events hit it first and get consumed before reaching the
   // viewer's own overflow-y:auto scroll container. Forward them explicitly.
+  const bodyWrap = viewerEl.parentElement;
   if (bodyWrap) {
     bodyWrap.addEventListener('wheel', (e) => {
       if (viewerEl.style.display === 'none') return;
