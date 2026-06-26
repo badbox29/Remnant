@@ -3446,7 +3446,6 @@ function renderCipherObscuredViewer(id) {
 
   runWithCipherNote(id, (note) => {
     const lineCount = note?.encrypted?.lines?.length || 0;
-    console.log('[Remnant] Cipher viewer: lineCount=', lineCount, 'viewer scrollHeight will be:', lineCount * 1.7 * 16);
     // Remove only the row divs
     viewerEl.querySelectorAll('.cipher-obscured-row').forEach(r => r.remove());
 
