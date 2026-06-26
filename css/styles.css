@@ -1090,19 +1090,15 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 
 .cipher-obscured-row {
-  min-height: 1.7em;
   position: relative;
-  display: flex;
-  align-items: center;
 }
 
-/* The real decrypted text — rendered normally; the canvas mask overlay
-   sits on top and handles what's visible. The gold element mirrors it. */
 .cipher-obscured-row-real {
   white-space: pre-wrap;
   word-wrap: break-word;
   display: block;
   width: 100%;
+  min-height: 1.7em;
 }
 
 /* When a row is active (decrypted), make its text available. */
