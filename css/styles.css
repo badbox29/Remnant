@@ -1123,11 +1123,10 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
    so mouse events fall through to the viewer normally. */
 .cipher-touch-layer {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
   z-index: 11;
-  pointer-events: none; /* desktop: fall through to viewer */
-  touch-action: none;   /* mobile: we own all touch */
+  pointer-events: none;
+  touch-action: none;
 }
 @media (hover: none) and (pointer: coarse) {
   .cipher-touch-layer {
