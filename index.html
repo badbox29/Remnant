@@ -116,6 +116,10 @@
         <div class="cipher-obscured-viewer" id="cipher-obscured-viewer" aria-hidden="true" style="display:none;">
         </div>
         <canvas class="cipher-mist-canvas" id="cipher-mist-canvas" style="display:none;"></canvas>
+        <!-- Touch capture layer: sits above viewer, owns all touch events,
+             never scrolls natively. JS decides: edge zone = scroll viewer,
+             middle = move mist. Completely separates scroll from reveal. -->
+        <div class="cipher-touch-layer" id="cipher-touch-layer" style="display:none;"></div>
         <!-- Plain Remnants always use this textarea. Ciphers ONLY use
              it while ILLUMINATED — that's the one mode where the full
              plaintext is meant to exist in memory at all, and editing
