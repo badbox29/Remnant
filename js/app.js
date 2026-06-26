@@ -3661,15 +3661,23 @@ function attachCipherObscuredViewerTracking() {
     enterCipherKeyboardMode();
   });
 
+  viewerEl.addEventListener('touchstart', (e) => {
+    // Non-passive touchstart required so touchmove can preventDefault
+  }, { passive: false });
+
   viewerEl.addEventListener('touchmove', (e) => {
     if (!e.touches?.length) return;
     const x = e.touches[0].clientX;
     const y = e.touches[0].clientY;
     App._lastPointerX = x;
-    // On mobile, offset the reveal window upward so it sits above the finger
+
+    // Prevent browser from scrolling the page — we handle all scroll
+    // ourselves via edge zones. Only suppress if viewer is active.
+    e.preventDefault();
+
     queueSync(y - TOUCH_REVEAL_OFFSET_PX);
     updateTouchEdgeAutoScroll(viewerEl, y);
-  }, { passive: true });
+  }, { passive: false });
   viewerEl.addEventListener('touchend', stopTouchEdgeAutoScroll);
   viewerEl.addEventListener('touchcancel', stopTouchEdgeAutoScroll);
 
