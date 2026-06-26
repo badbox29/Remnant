@@ -3705,13 +3705,12 @@ function attachCipherObscuredViewerTracking() {
       const distFromTop    = y - rect.top;
       const distFromBottom = rect.bottom - y;
 
-      if (distFromBottom < zoneSize) {
-        const progress = 1 - Math.max(0, distFromBottom) / zoneSize;
-        viewerEl.scrollTop += EDGE_SCROLL_MAX_PX_PER_FRAME * progress * progress;
-      } else if (distFromTop < zoneSize) {
-        const progress = 1 - Math.max(0, distFromTop) / zoneSize;
-        viewerEl.scrollTop -= EDGE_SCROLL_MAX_PX_PER_FRAME * progress * progress;
+      if (distFromBottom < zoneSize || distFromTop < zoneSize) {
+        // Edge zone — hand off to the RAF-based auto-scroller
+        updateTouchEdgeAutoScroll(viewerEl, y);
       } else {
+        // Middle zone — stop any active edge scroll, move mist
+        stopTouchEdgeAutoScroll();
         queueSync(y - TOUCH_REVEAL_OFFSET_PX);
       }
     }, { passive: false });
