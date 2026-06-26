@@ -3098,6 +3098,8 @@ function updateCipherControlsVisibility(id) {
   const showViewer = isCipher && unlocked && !illuminated;
   viewerEl.style.display = showViewer ? '' : 'none';
   bodyEl.style.display   = showViewer ? 'none' : '';
+  const mistCanvas = document.getElementById('cipher-mist-canvas');
+  if (mistCanvas) mistCanvas.style.display = showViewer ? '' : 'none';
   if (showViewer) { _mistResizeCanvas(); _mistStart(); } else { _mistStop(); }
 
   // Inscribe button: shown for plain Remnants and Fragments (not Ciphers, not empty)
@@ -3446,11 +3448,9 @@ function renderCipherObscuredViewer(id) {
 
   runWithCipherNote(id, (note) => {
     const lineCount = note?.encrypted?.lines?.length || 0;
-    // Remove only the row divs, not the canvas
+    // Remove only the row divs
     viewerEl.querySelectorAll('.cipher-obscured-row').forEach(r => r.remove());
 
-    // Insert rows before the canvas so canvas stays on top
-    const canvas = document.getElementById('cipher-mist-canvas');
     for (let i = 0; i < lineCount; i++) {
       const row = document.createElement('div');
       row.className = 'cipher-obscured-row';
@@ -3465,7 +3465,7 @@ function renderCipherObscuredViewer(id) {
       row.style.position = 'relative';
       row.appendChild(realEl);
       row.appendChild(goldEl);
-      viewerEl.insertBefore(row, canvas);
+      viewerEl.appendChild(row);
     }
     cipherViewerRowCount = lineCount;
     cipherViewerActiveRowIndex = -1;
