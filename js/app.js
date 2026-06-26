@@ -3435,17 +3435,13 @@ function _mistDraw() {
 function _mistResizeCanvas() {
   const canvas = document.getElementById('cipher-mist-canvas');
   const viewerEl = document.getElementById('cipher-obscured-viewer');
-  if (!viewerEl) return;
-  const w = viewerEl.clientWidth;
-  const h = viewerEl.clientHeight;
-  const t = viewerEl.offsetTop;
-  const l = viewerEl.offsetLeft;
-  if (canvas) {
-    canvas.width  = w;
-    canvas.height = h;
-    canvas.style.top  = t + 'px';
-    canvas.style.left = l + 'px';
-  }
+  if (!canvas || !viewerEl) return;
+  const wrap = viewerEl.parentElement;
+  if (!wrap) return;
+  // Size canvas to the parent container (note-body-wrap), not the viewer.
+  // The viewer's clientHeight may not reflect the full visual area on mobile.
+  canvas.width  = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
 }
 
 // ── Row build helpers ────────────────────────────────────────────────
