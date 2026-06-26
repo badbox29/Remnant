@@ -1110,14 +1110,11 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
    handling all masking. pointer-events:none so scroll/mouse events
    still reach the viewer underneath. */
 .cipher-mist-canvas {
-  position: sticky;
+  position: absolute;
   top: 0;
   left: 0;
   pointer-events: none;
   z-index: 10;
-  /* Sticky keeps the canvas pinned to the visible viewport as the viewer
-     scrolls, without affecting scroll height or blocking scroll events. */
-  margin-bottom: -100%; /* prevent the sticky element from adding height */
 }
 
 /* ── Scratchpad ──────────────────────────────────────────────────── */
