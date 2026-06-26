@@ -3098,6 +3098,7 @@ function updateCipherControlsVisibility(id) {
   const showViewer = isCipher && unlocked && !illuminated;
   viewerEl.style.display = showViewer ? '' : 'none';
   bodyEl.style.display   = showViewer ? 'none' : '';
+  if (showViewer) { _mistResizeCanvas(); _mistStart(); } else { _mistStop(); }
 
   // Inscribe button: shown for plain Remnants and Fragments (not Ciphers, not empty)
   const showInscribe = !!id && !isCipher;
@@ -3245,55 +3246,214 @@ function renderActiveNoteInner() {
   }
 }
 
-// ─── Cipher obscured viewer: per-line decrypt-on-demand ────────────
+// ─── Cipher obscured viewer: mist-reveal per-line decrypt-on-demand ─
 //
 // Read-only. Shown whenever a Cipher is unlocked but NOT illuminated.
-// Built as one real <div> row per ENCRYPTED line (note.encrypted.lines)
-// — row count and therefore scroll height are known immediately from
-// that array's length, with ZERO decryption needed just to lay out the
-// viewer. This is the actual structural fix for the wrap-mismatch bugs
-// chased earlier today: there's no second text layer trying to
-// reproduce anything's wrapping, because at rest there's no text at all
-// in most rows — just a sand-texture placeholder div with no characters
-// for a browser to lay out incorrectly.
+// Built as one real <div> row per ENCRYPTED line (note.encrypted.lines).
 //
-// Decryption happens ONLY for the row currently under the cursor
-// (mouse or touch), via Cipher.decryptLineWithKey — and the decrypted
-// text is DISCARDED (the row's real-text div is cleared) the moment the
-// cursor moves to a different row. This is genuine per-line decrypt-on-
-// demand: at any moment, only the active row's plaintext exists in
-// memory at all, not a slice/mask of an already-fully-decrypted string.
+// The mist reveal replaces the old sand-texture approach. A canvas
+// overlay covers the entire viewer. An elliptical window follows the
+// cursor (or is locked to the active row in keyboard mode), revealing
+// text through animated turbulence-edge mist. The gold blur layer
+// creates a warm halo ring between the sharp center and the full mask.
+//
+// Decryption: the 1-2 rows whose text falls inside the ellipse window
+// are decrypted on demand and discarded when the window moves away.
+// The token/stale-decrypt protection from the original design is kept.
 
 let cipherViewerRowCount = 0;
 let cipherViewerActiveRowIndex = -1;
-let cipherViewerDecryptToken = 0; // incremented on every row change, so a slow in-flight decrypt for a row the cursor has already left can detect it's stale and discard its own result instead of writing into the wrong row
+let cipherViewerDecryptToken = 0;
 
+// ── Mist parameters (tuned from prototype) ──────────────────────────
+const MIST = {
+  HW: 80,          // half-width of clear ellipse (px)
+  get HH() { return this.HW * 0.52; }, // half-height
+  THICKNESS: 40,   // mist band thickness (px)
+  GOLD_BLUR: 5,    // px blur on gold layer
+  GOLD_WIDTH: 2.5, // gold ellipse scale factor
+  GOLD_OPACITY: 1,
+  GOLD_HUE: 40,
+  GOLD_SAT: 100,
+  GOLD_BRIGHT: 2,
+  SHARP_RADIUS: 0.9, // fraction of HW where sharp mask ends
+  FLOW_SPEED: 5,
+};
+
+// ── Perlin noise for mist turbulence ────────────────────────────────
+const _mistPerm = new Uint8Array(512);
+(function() {
+  const p = Array.from({ length: 256 }, (_, i) => i);
+  for (let i = 255; i > 0; i--) {
+    const j = Math.random() * (i + 1) | 0;
+    [p[i], p[j]] = [p[j], p[i]];
+  }
+  for (let i = 0; i < 512; i++) _mistPerm[i] = p[i & 255];
+})();
+function _g2(h, x, y) { const u = h < 2 ? x : y, v = h < 2 ? y : x; return (h & 1 ? -u : u) + (h & 2 ? -v : v); }
+function _n2(x, y) {
+  const xi = Math.floor(x) & 255, yi = Math.floor(y) & 255;
+  const xf = x - Math.floor(x), yf = y - Math.floor(y);
+  const u = xf*xf*xf*(xf*(xf*6-15)+10), v = yf*yf*yf*(yf*(yf*6-15)+10);
+  const L = (a, b, t) => a + t * (b - a);
+  const aa = _mistPerm[_mistPerm[xi]+yi], ab = _mistPerm[_mistPerm[xi]+yi+1];
+  const ba = _mistPerm[_mistPerm[xi+1]+yi], bb = _mistPerm[_mistPerm[xi+1]+yi+1];
+  return L(L(_g2(aa,xf,yf),_g2(ba,xf-1,yf),u), L(_g2(ab,xf,yf-1),_g2(bb,xf-1,yf-1),u), v);
+}
+function _fbm(x, y) {
+  let v = 0, a = 0.5, f = 1, m = 0;
+  for (let i = 0; i < 4; i++) { v += _n2(x*f, y*f)*a; m += a; a *= 0.5; f *= 2.1; }
+  return v / m;
+}
+
+// ── Mist canvas state ────────────────────────────────────────────────
+let _mistT = 0;
+let _mistRAF = null;
+let _mistPx = -9999, _mistPy = -9999; // canvas-relative coordinates of ellipse center
+let _mistActive = false;              // true while the viewer is visible and animating
+
+function _mistStart() {
+  if (_mistRAF) return;
+  _mistActive = true;
+  _mistRAF = requestAnimationFrame(_mistFrame);
+}
+
+function _mistStop() {
+  _mistActive = false;
+  if (_mistRAF) { cancelAnimationFrame(_mistRAF); _mistRAF = null; }
+  // Clear canvas when stopping
+  const canvas = document.getElementById('cipher-mist-canvas');
+  if (canvas) { const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); }
+}
+
+function _mistFrame() {
+  if (!_mistActive) { _mistRAF = null; return; }
+  _mistT += MIST.FLOW_SPEED * 0.00022 * 16;
+  _mistDraw();
+  _mistRAF = requestAnimationFrame(_mistFrame);
+}
+
+function _mistDraw() {
+  const canvas = document.getElementById('cipher-mist-canvas');
+  const viewerEl = document.getElementById('cipher-obscured-viewer');
+  if (!canvas || !viewerEl || viewerEl.style.display === 'none') return;
+
+  const W = canvas.width, H = canvas.height;
+  if (!W || !H) return;
+
+  const ctx = canvas.getContext('2d');
+  const px = _mistPx, py = _mistPy;
+  const HW = MIST.HW, HH = MIST.HH, THICK = MIST.THICKNESS;
+  const t = _mistT;
+
+  // Sharp text mask
+  const sr = MIST.SHARP_RADIUS;
+  const sharpEl = viewerEl; // applied to the rows directly via DOM mask
+  // Apply CSS mask to the viewer's text rows for sharp center
+  const sharpMask = `radial-gradient(ellipse ${HW*0.85}px ${HH*0.85}px at ${px}px ${py}px, black 0%, black ${Math.round(sr*100)}%, transparent ${Math.round(sr*100+45)}%)`;
+
+  // Apply to all active row real-text elements
+  viewerEl.querySelectorAll('.cipher-obscured-row.active .cipher-obscured-row-real').forEach(el => {
+    el.style.webkitMaskImage = sharpMask;
+    el.style.maskImage = sharpMask;
+  });
+
+  // Gold layer mask — peaks in the halo ring
+  const gw = MIST.GOLD_WIDTH;
+  const goldOuter = HW * gw;
+  const goldInner = HW * 0.45;
+  const innerPct = Math.round(goldInner / goldOuter * 100);
+  const hue = MIST.GOLD_HUE, sat = MIST.GOLD_SAT;
+  const goldMask = `radial-gradient(ellipse ${goldOuter}px ${goldOuter*0.52}px at ${px}px ${py}px, transparent 0%, transparent ${innerPct}%, rgba(0,0,0,${MIST.GOLD_OPACITY}) ${Math.min(innerPct+20,85)}%, rgba(0,0,0,${MIST.GOLD_OPACITY*0.6}) 70%, transparent 100%)`;
+  viewerEl.querySelectorAll('.cipher-obscured-row.active .cipher-obscured-row-gold').forEach(el => {
+    el.style.webkitMaskImage = goldMask;
+    el.style.maskImage = goldMask;
+  });
+
+  // Mist canvas — full opaque background with turbulence-edged ellipse hole
+  ctx.clearRect(0, 0, W, H);
+  const img = ctx.createImageData(W, H);
+  const d = img.data;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const dx = (x - px) / HW, dy = (y - py) / HH;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      let alpha;
+      if (dist <= 1.0) {
+        alpha = 0;
+      } else {
+        const outer = 1.0 + THICK / Math.min(HW, HH);
+        if (dist >= outer) {
+          alpha = 255;
+        } else {
+          const te = (dist - 1.0) / (outer - 1.0);
+          const nx = x * 0.009 + t * 0.6, ny = y * 0.009 + t * 0.35;
+          const nm = _fbm(nx, ny) * 0.65 + _fbm(nx + 3.7, ny + 1.9) * 0.35;
+          const disp = te + nm * 0.4 * (1 - te * 0.5);
+          const cl = Math.max(0, Math.min(1, disp));
+          alpha = Math.round(cl * cl * (3 - 2 * cl) * 255);
+        }
+      }
+      const idx = (y * W + x) * 4;
+      d[idx] = 0; d[idx+1] = 0; d[idx+2] = 0; d[idx+3] = alpha;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  // Amber glow at mist boundary (destination-over so only inside hole)
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-over';
+  const glow = ctx.createRadialGradient(px, py, HW*0.5, px, py, HW*1.6);
+  glow.addColorStop(0,    'rgba(0,0,0,0)');
+  glow.addColorStop(0.45, `hsla(${hue},${sat}%,35%,0.10)`);
+  glow.addColorStop(0.75, `hsla(${hue},${sat}%,25%,0.20)`);
+  glow.addColorStop(1,    'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+function _mistResizeCanvas() {
+  const canvas = document.getElementById('cipher-mist-canvas');
+  const viewerEl = document.getElementById('cipher-obscured-viewer');
+  if (!canvas || !viewerEl) return;
+  canvas.width = viewerEl.offsetWidth;
+  canvas.height = viewerEl.offsetHeight;
+}
+
+// ── Row build helpers ────────────────────────────────────────────────
 function renderCipherObscuredViewer(id) {
   const viewerEl = document.getElementById('cipher-obscured-viewer');
   if (viewerEl.style.display === 'none') return;
 
   runWithCipherNote(id, (note) => {
     const lineCount = note?.encrypted?.lines?.length || 0;
-    viewerEl.innerHTML = '';
+    // Remove only the row divs, not the canvas
+    viewerEl.querySelectorAll('.cipher-obscured-row').forEach(r => r.remove());
+
+    // Insert rows before the canvas so canvas stays on top
+    const canvas = document.getElementById('cipher-mist-canvas');
     for (let i = 0; i < lineCount; i++) {
       const row = document.createElement('div');
       row.className = 'cipher-obscured-row';
       row.dataset.lineIndex = i;
-      row.innerHTML = `
-        <div class="cipher-obscured-row-sand"></div>
-        <div class="cipher-obscured-row-real"></div>
-      `;
-      viewerEl.appendChild(row);
+      // Sharp text element
+      const realEl = document.createElement('div');
+      realEl.className = 'cipher-obscured-row-real';
+      // Gold blurry element — same text, styled gold+blurred
+      const goldEl = document.createElement('div');
+      goldEl.className = 'cipher-obscured-row-gold';
+      goldEl.style.cssText = `position:absolute;top:0;left:0;right:0;color:hsl(${MIST.GOLD_HUE},${MIST.GOLD_SAT}%,55%);filter:blur(${MIST.GOLD_BLUR}px) brightness(${MIST.GOLD_BRIGHT});white-space:pre-wrap;word-wrap:break-word;pointer-events:none;`;
+      row.style.position = 'relative';
+      row.appendChild(realEl);
+      row.appendChild(goldEl);
+      viewerEl.insertBefore(row, canvas);
     }
     cipherViewerRowCount = lineCount;
     cipherViewerActiveRowIndex = -1;
-    // Re-sync via whichever mode is actually controlling the reveal right
-    // now — don't assume hover-follow just because that's the default;
-    // if keyboard mode happens to still be active when this rebuilds
-    // (defensive: currently nothing calls this while keyboard mode is on,
-    // but this shouldn't depend on that staying true elsewhere), restore
-    // the reveal via keyboard navigation instead of overwriting it with
-    // a hover-based guess from a possibly-stale pointer coordinate.
+    _mistResizeCanvas();
+    _mistStart();
+
     if (App._cipherKeyboardMode) {
       navigateCipherKeyboardRow(id, 0);
     } else {
@@ -3302,11 +3462,6 @@ function renderCipherObscuredViewer(id) {
   });
 }
 
-// runWithCipherNote — small helper since renderCipherObscuredViewer
-// needs the note record (for encrypted.lines.length) but isn't itself
-// async-friendly to call from every render path; fires the callback
-// once the note is fetched. Synchronous callers just don't get a
-// return value, which is fine here since rendering is fire-and-forget.
 function runWithCipherNote(id, callback) {
   NotesStore.get(id).then(note => { if (App.activeNoteId === id) callback(note); });
 }
@@ -3317,9 +3472,8 @@ function lineHeightPx() {
   return Number.isFinite(lh) ? lh : 24;
 }
 
-// syncObscuredViewerToPointer(id, clientY) — determines which ROW the
-// pointer is over (by measured position, same approach as before) and
-// activates exactly that row, deactivating whichever was active before.
+// syncObscuredViewerToPointer — moves the mist ellipse center to the
+// current pointer position and decrypts the 1-2 rows under the window.
 function syncObscuredViewerToPointer(id, clientY) {
   if (clientY == null) return;
   const viewerEl = document.getElementById('cipher-obscured-viewer');
@@ -3329,6 +3483,11 @@ function syncObscuredViewerToPointer(id, clientY) {
   if (!rows.length) return;
   const lh = lineHeightPx();
 
+  // Update canvas-relative mist center
+  const rect = viewerEl.getBoundingClientRect();
+  _mistPx = App._lastPointerX != null ? App._lastPointerX - rect.left : rect.width / 2;
+  _mistPy = clientY - rect.top + viewerEl.scrollTop;
+
   const tops = Array.from(rows).map(r => Math.round(r.getBoundingClientRect().top));
   let hoveredIdx = 0;
   for (let i = 0; i < tops.length; i++) {
@@ -3337,18 +3496,22 @@ function syncObscuredViewerToPointer(id, clientY) {
     hoveredIdx = i;
   }
 
-  rows.forEach((row, i) => {
-    row.classList.toggle('adjacent', i === hoveredIdx - 1 || i === hoveredIdx + 1);
-  });
+  // Activate up to 2 rows (hovered + one adjacent that falls in window)
+  const toActivate = new Set([hoveredIdx]);
+  if (hoveredIdx > 0) toActivate.add(hoveredIdx - 1);
 
-  if (hoveredIdx === cipherViewerActiveRowIndex) return; // no change, nothing to (de/re)activate
+  if (hoveredIdx === cipherViewerActiveRowIndex) return;
 
   const prevIdx = cipherViewerActiveRowIndex;
   cipherViewerActiveRowIndex = hoveredIdx;
   const myToken = ++cipherViewerDecryptToken;
 
-  if (prevIdx >= 0) deactivateRow(rows[prevIdx]);
-  activateRow(id, rows[hoveredIdx], hoveredIdx, myToken);
+  rows.forEach((row, i) => {
+    if (!toActivate.has(i) && row.classList.contains('active')) deactivateRow(row);
+  });
+  toActivate.forEach(i => {
+    if (rows[i]) activateRow(id, rows[i], i, myToken);
+  });
 }
 
 async function activateRow(id, rowEl, lineIndex, token) {
@@ -3379,21 +3542,18 @@ async function activateRow(id, rowEl, lineIndex, token) {
 
   const realEl = rowEl.querySelector('.cipher-obscured-row-real');
   realEl.textContent = text;
+  const goldEl = rowEl.querySelector('.cipher-obscured-row-gold');
+  if (goldEl) goldEl.textContent = text;
   rowEl.classList.add('active');
 }
 
 function deactivateRow(rowEl) {
   if (!rowEl) return;
   rowEl.classList.remove('active');
-  // This is the actual "discard from memory" step — clearing
-  // textContent removes the decrypted string from the DOM/render tree.
-  // The underlying JS string becomes unreachable once nothing else
-  // references it, eligible for garbage collection on the engine's own
-  // schedule (see cipher.js's broader notes on what "discard" can and
-  // cannot guarantee in JS — there's no hard zero-out, but this closes
-  // the window of EXPOSURE/REFERENCE as tightly as the language allows).
   const realEl = rowEl.querySelector('.cipher-obscured-row-real');
   if (realEl) realEl.textContent = '';
+  const goldEl = rowEl.querySelector('.cipher-obscured-row-gold');
+  if (goldEl) goldEl.textContent = '';
 }
 
 // Mobile touch offset: the reveal window sits ABOVE the touch point on
@@ -3436,19 +3596,23 @@ function attachCipherObscuredViewerTracking() {
   // is a genuinely separate mode, not a temporary override, so a stray
   // mouse twitch doesn't silently kick you back to hover-follow. Escape
   // exits back to normal hover-follow with everything re-obscured.
-  viewerEl.addEventListener('mousemove', (e) => queueSync(e.clientY));
+  viewerEl.addEventListener('mousemove', (e) => {
+    App._lastPointerX = e.clientX;
+    queueSync(e.clientY);
+  });
 
   viewerEl.addEventListener('mouseleave', () => {
     // Re-obscure the currently-revealed row when the pointer leaves the
-    // viewer entirely — without this, the last hovered row stays decrypted
-    // even after the mouse moves away to the scratchpad or elsewhere.
+    // viewer entirely.
     const rows = viewerEl.querySelectorAll('.cipher-obscured-row');
     if (cipherViewerActiveRowIndex >= 0 && rows[cipherViewerActiveRowIndex]) {
       deactivateRow(rows[cipherViewerActiveRowIndex]);
     }
     rows.forEach(r => r.classList.remove('adjacent'));
     cipherViewerActiveRowIndex = -1;
-    ++cipherViewerDecryptToken; // invalidate any in-flight decrypt
+    ++cipherViewerDecryptToken;
+    // Park mist off-screen so nothing shows on leave
+    _mistPx = -9999; _mistPy = -9999;
   });
 
   viewerEl.addEventListener('click', () => {
@@ -3470,7 +3634,10 @@ function attachCipherObscuredViewerTracking() {
 
   viewerEl.addEventListener('touchmove', (e) => {
     if (!e.touches?.length) return;
+    const x = e.touches[0].clientX;
     const y = e.touches[0].clientY;
+    App._lastPointerX = x;
+    // On mobile, offset the reveal window upward so it sits above the finger
     queueSync(y - TOUCH_REVEAL_OFFSET_PX);
     updateTouchEdgeAutoScroll(viewerEl, y);
   }, { passive: true });
@@ -3484,6 +3651,9 @@ function attachCipherObscuredViewerTracking() {
   // keyboard mode, via queueSync's own guard above — including the
   // scroll events keyboard navigation's own scrollIntoView triggers.)
   viewerEl.addEventListener('scroll', () => queueSync(App._lastPointerY), { passive: true });
+
+  // Resize canvas when viewer size changes (e.g. nav panel resize)
+  new ResizeObserver(() => _mistResizeCanvas()).observe(viewerEl);
 }
 
 // ─── Touch edge auto-scroll ─────────────────────────────────────────
@@ -3589,17 +3759,16 @@ function navigateCipherKeyboardRow(id, newIndex) {
   if (prevIdx >= 0 && rows[prevIdx]) deactivateRow(rows[prevIdx]);
   rows.forEach((row, i) => row.classList.toggle('adjacent', i === clamped - 1 || i === clamped + 1));
   activateRow(id, rows[clamped], clamped, myToken);
-  // Native scrollIntoView, not custom scroll-distance math. Plain
-  // Remnants get correct, natural-feeling keyboard scrolling for free
-  // from the browser's own textarea behavior — no custom code at all.
-  // An earlier custom margin/overflow formula here was the actual
-  // source of a real bug (it kept yanking scrollTop backward toward 0
-  // for rows that were already comfortably visible near the top of an
-  // unscrolled viewer, looking like navigation was looping back to the
-  // start instead of advancing). Letting the browser handle this the
-  // same way it already handles it correctly for Remnants removes that
-  // whole class of self-inflicted bug.
   rows[clamped].scrollIntoView({ block: 'center' });
+  // Position mist ellipse at center of the active row
+  const viewerEl = document.getElementById('cipher-obscured-viewer');
+  const canvas = document.getElementById('cipher-mist-canvas');
+  if (viewerEl && canvas) {
+    const rowRect = rows[clamped].getBoundingClientRect();
+    const viewerRect = viewerEl.getBoundingClientRect();
+    _mistPx = viewerRect.width / 2;
+    _mistPy = rowRect.top - viewerRect.top + viewerEl.scrollTop + rowRect.height / 2;
+  }
 }
 
 function handleCipherKeyboardNav(e) {
