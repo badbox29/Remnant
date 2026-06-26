@@ -3446,6 +3446,7 @@ function renderCipherObscuredViewer(id) {
 
   runWithCipherNote(id, (note) => {
     const lineCount = note?.encrypted?.lines?.length || 0;
+    console.log('[Remnant] Cipher viewer: lineCount=', lineCount, 'viewer scrollHeight will be:', lineCount * 1.7 * 16);
     // Remove only the row divs
     viewerEl.querySelectorAll('.cipher-obscured-row').forEach(r => r.remove());
 
@@ -3461,7 +3462,6 @@ function renderCipherObscuredViewer(id) {
       const goldEl = document.createElement('div');
       goldEl.className = 'cipher-obscured-row-gold';
       goldEl.style.cssText = `position:absolute;top:0;left:0;right:0;color:hsl(${MIST.GOLD_HUE},${MIST.GOLD_SAT}%,55%);filter:blur(${MIST.GOLD_BLUR}px) brightness(${MIST.GOLD_BRIGHT});white-space:pre-wrap;word-wrap:break-word;pointer-events:none;`;
-      row.style.position = 'relative';
       row.appendChild(realEl);
       row.appendChild(goldEl);
       viewerEl.appendChild(row);
