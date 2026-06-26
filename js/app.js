@@ -3761,7 +3761,6 @@ function navigateCipherKeyboardRow(id, newIndex) {
   activateRow(id, rows[clamped], clamped, myToken);
   rows[clamped].scrollIntoView({ block: 'center' });
   // Position mist ellipse at center of the active row
-  const viewerEl = document.getElementById('cipher-obscured-viewer');
   const canvas = document.getElementById('cipher-mist-canvas');
   if (viewerEl && canvas) {
     const rowRect = rows[clamped].getBoundingClientRect();
