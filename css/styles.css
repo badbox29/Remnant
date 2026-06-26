@@ -1078,7 +1078,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   font-size: .98rem;
   line-height: 1.7;
   color: var(--ink);
-  touch-action: pan-y;
+  touch-action: pan-y; /* native vertical scroll for scroll gestures; read gestures suppress via preventDefault */
   padding-bottom: 1.5em;
   cursor: none;
 }
