@@ -1094,19 +1094,17 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   position: relative;
 }
 
-/* The real decrypted text — always present in DOM once decrypted,
-   but invisible except where the mist canvas reveals it. */
+/* The real decrypted text — rendered normally; the canvas mask overlay
+   sits on top and handles what's visible. The gold element mirrors it. */
 .cipher-obscured-row-real {
   white-space: pre-wrap;
   word-wrap: break-word;
   display: block;
-  visibility: hidden; /* hidden by default; canvas mask handles reveal */
 }
 
-/* When a row is active (decrypted), make its text visible so the
-   canvas mask can selectively reveal it via the mist window. */
+/* When a row is active (decrypted), make its text available. */
 .cipher-obscured-row.active .cipher-obscured-row-real {
-  visibility: visible;
+  display: block;
 }
 
 /* The mist canvas overlay — sits on top of the entire viewer,
