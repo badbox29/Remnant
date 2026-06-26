@@ -3346,31 +3346,35 @@ function _mistDraw() {
   const HW = MIST.HW, HH = MIST.HH, THICK = MIST.THICKNESS;
   const t = _mistT;
 
-  // Sharp text mask
-  const sr = MIST.SHARP_RADIUS;
-  const sharpEl = viewerEl; // applied to the rows directly via DOM mask
-  // Apply CSS mask to the viewer's text rows for sharp center
-  const sharpMask = `radial-gradient(ellipse ${HW*0.85}px ${HH*0.85}px at ${px}px ${py}px, black 0%, black ${Math.round(sr*100)}%, transparent ${Math.round(sr*100+45)}%)`;
+  // Sharp text mask — canvas handles the primary masking; no per-element
+  // CSS mask needed. The canvas paints --paper color over everything except
+  // the ellipse window, revealing whatever text is rendered underneath.
 
-  // Apply to all active row real-text elements
-  viewerEl.querySelectorAll('.cipher-obscured-row.active .cipher-obscured-row-real').forEach(el => {
-    el.style.webkitMaskImage = sharpMask;
-    el.style.maskImage = sharpMask;
-  });
-
-  // Gold layer mask — peaks in the halo ring
+  // Gold layer: halo ring mask, coordinates relative to each row element
   const gw = MIST.GOLD_WIDTH;
   const goldOuter = HW * gw;
   const goldInner = HW * 0.45;
   const innerPct = Math.round(goldInner / goldOuter * 100);
   const hue = MIST.GOLD_HUE, sat = MIST.GOLD_SAT;
-  const goldMask = `radial-gradient(ellipse ${goldOuter}px ${goldOuter*0.52}px at ${px}px ${py}px, transparent 0%, transparent ${innerPct}%, rgba(0,0,0,${MIST.GOLD_OPACITY}) ${Math.min(innerPct+20,85)}%, rgba(0,0,0,${MIST.GOLD_OPACITY*0.6}) 70%, transparent 100%)`;
   viewerEl.querySelectorAll('.cipher-obscured-row.active .cipher-obscured-row-gold').forEach(el => {
+    const rowRect = el.closest('.cipher-obscured-row').getBoundingClientRect();
+    const viewerRect = viewerEl.getBoundingClientRect();
+    // Convert viewer-relative mist center to row-relative for the CSS mask
+    const rowRelX = px - (rowRect.left - viewerRect.left);
+    const rowRelY = py - (rowRect.top - viewerRect.top + viewerEl.scrollTop) + viewerEl.scrollTop;
+    const goldMask = `radial-gradient(ellipse ${goldOuter}px ${goldOuter*0.52}px at ${rowRelX}px ${rowRelY}px, transparent 0%, transparent ${innerPct}%, rgba(0,0,0,${MIST.GOLD_OPACITY}) ${Math.min(innerPct+20,85)}%, rgba(0,0,0,${MIST.GOLD_OPACITY*0.6}) 70%, transparent 100%)`;
     el.style.webkitMaskImage = goldMask;
     el.style.maskImage = goldMask;
   });
 
   // Mist canvas — full opaque background with turbulence-edged ellipse hole
+  // Use the actual background color of the viewer, not hardcoded black
+  const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--paper').trim() || '#ffffff';
+  // Parse hex to r,g,b
+  let bgR = 247, bgG = 244, bgB = 237; // fallback: light mode --paper
+  const hexMatch = bgColor.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (hexMatch) { bgR = parseInt(hexMatch[1],16); bgG = parseInt(hexMatch[2],16); bgB = parseInt(hexMatch[3],16); }
+
   ctx.clearRect(0, 0, W, H);
   const img = ctx.createImageData(W, H);
   const d = img.data;
@@ -3395,7 +3399,7 @@ function _mistDraw() {
         }
       }
       const idx = (y * W + x) * 4;
-      d[idx] = 0; d[idx+1] = 0; d[idx+2] = 0; d[idx+3] = alpha;
+      d[idx] = bgR; d[idx+1] = bgG; d[idx+2] = bgB; d[idx+3] = alpha;
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -3496,19 +3500,18 @@ function syncObscuredViewerToPointer(id, clientY) {
     hoveredIdx = i;
   }
 
-  // Activate up to 2 rows (hovered + one adjacent that falls in window)
+  // Determine which rows should be active (hovered + one above for the mist window)
   const toActivate = new Set([hoveredIdx]);
   if (hoveredIdx > 0) toActivate.add(hoveredIdx - 1);
 
-  if (hoveredIdx === cipherViewerActiveRowIndex) return;
-
-  const prevIdx = cipherViewerActiveRowIndex;
-  cipherViewerActiveRowIndex = hoveredIdx;
   const myToken = ++cipherViewerDecryptToken;
+  cipherViewerActiveRowIndex = hoveredIdx;
 
+  // Deactivate rows that are no longer in the window
   rows.forEach((row, i) => {
     if (!toActivate.has(i) && row.classList.contains('active')) deactivateRow(row);
   });
+  // Activate rows in the window
   toActivate.forEach(i => {
     if (rows[i]) activateRow(id, rows[i], i, myToken);
   });
