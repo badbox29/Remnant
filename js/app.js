@@ -3434,12 +3434,9 @@ function _mistResizeCanvas() {
   const canvas = document.getElementById('cipher-mist-canvas');
   const viewerEl = document.getElementById('cipher-obscured-viewer');
   if (!canvas || !viewerEl) return;
-  // Size canvas to the visible viewport of the viewer, not its scroll height.
-  // Position it at the current scrollTop so it always covers what's visible.
-  // This way it has zero effect on scroll height.
   canvas.width  = viewerEl.clientWidth;
   canvas.height = viewerEl.clientHeight;
-  canvas.style.top = viewerEl.scrollTop + 'px';
+  canvas.style.top = '0';
 }
 
 // ── Row build helpers ────────────────────────────────────────────────
@@ -3680,19 +3677,20 @@ function attachCipherObscuredViewerTracking() {
   // keyboard mode, via queueSync's own guard above — including the
   // scroll events keyboard navigation's own scrollIntoView triggers.)
   viewerEl.addEventListener('scroll', () => {
-    _mistResizeCanvas();
     queueSync(App._lastPointerY);
   }, { passive: true });
 
   // note-body-wrap has overflow:hidden (required for EasyMDE layout), which
   // means wheel events hit it first and get consumed before reaching the
   // viewer's own overflow-y:auto scroll container. Forward them explicitly.
-  const bodyWrap = viewerEl.parentElement;
   if (bodyWrap) {
     bodyWrap.addEventListener('wheel', (e) => {
       if (viewerEl.style.display === 'none') return;
       e.preventDefault();
-      viewerEl.scrollTop += e.deltaY;
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 24; // line mode → pixels
+      if (e.deltaMode === 2) delta *= viewerEl.clientHeight; // page mode
+      viewerEl.scrollTop += delta;
     }, { passive: false });
     new ResizeObserver(() => _mistResizeCanvas()).observe(bodyWrap);
   }
