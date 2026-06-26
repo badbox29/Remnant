@@ -3529,11 +3529,9 @@ function syncObscuredViewerToPointer(id, clientY) {
   if (!rows.length) return;
   const lh = lineHeightPx();
 
-  // Canvas is inside the viewer, positioned at scrollTop, so coords are
-  // clientY-relative to the viewer rect (no scroll adjustment needed)
   const rect = viewerEl.getBoundingClientRect();
   _mistPx = (App._lastPointerX != null ? App._lastPointerX : rect.left + rect.width / 2) - rect.left;
-  _mistPy = clientY - rect.top;
+  _mistPy = Math.max(MIST.HH, Math.min(rect.height - MIST.HH, clientY - rect.top));
 
   const tops = Array.from(rows).map(r => Math.round(r.getBoundingClientRect().top));
   let hoveredIdx = 0;
@@ -3725,6 +3723,8 @@ function attachCipherObscuredViewerTracking() {
       } else {
         // Middle zone — stop any active edge scroll, move mist
         stopTouchEdgeAutoScroll();
+        // Pass raw clientY — syncObscuredViewerToPointer applies the
+        // upward offset internally so the mist sits above the finger
         queueSync(y - TOUCH_REVEAL_OFFSET_PX);
       }
     }, { passive: false });
