@@ -3644,7 +3644,7 @@ function deactivateRow(rowEl) {
       if (realEl) realEl.textContent = '';
       if (goldEl) goldEl.textContent = '';
     }
-  }, 400);
+  }, 600);
 }
 
 // Mobile touch offset: the reveal window sits ABOVE the touch point on
@@ -3900,8 +3900,6 @@ function navigateCipherKeyboardRow(id, newIndex) {
   if (prevIdx >= 0 && rows[prevIdx]) deactivateRow(rows[prevIdx]);
   rows.forEach((row, i) => row.classList.toggle('adjacent', i === clamped - 1 || i === clamped + 1));
   activateRow(id, rows[clamped], clamped, myToken);
-  if (rows[clamped - 1]) activateRow(id, rows[clamped - 1], clamped - 1, myToken);
-  if (rows[clamped + 1]) activateRow(id, rows[clamped + 1], clamped + 1, myToken);
   rows[clamped].scrollIntoView({ block: 'center' });
   // Position mist ellipse at center of the active row (viewport-relative for fixed canvas)
   const canvas = document.getElementById('cipher-mist-canvas');
