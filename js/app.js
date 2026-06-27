@@ -3576,16 +3576,24 @@ async function activateRow(id, rowEl, lineIndex, token) {
   realEl.textContent = text;
   const goldEl = rowEl.querySelector('.cipher-obscured-row-gold');
   if (goldEl) goldEl.textContent = text;
+  rowEl.classList.remove('fading'); // cancel any in-progress fade-out
   rowEl.classList.add('active');
 }
 
 function deactivateRow(rowEl) {
   if (!rowEl) return;
   rowEl.classList.remove('active');
+  rowEl.classList.add('fading');
   const realEl = rowEl.querySelector('.cipher-obscured-row-real');
-  if (realEl) realEl.textContent = '';
   const goldEl = rowEl.querySelector('.cipher-obscured-row-gold');
-  if (goldEl) goldEl.textContent = '';
+  setTimeout(() => {
+    // Only clear if still fading (not re-activated in the meantime)
+    if (rowEl.classList.contains('fading')) {
+      rowEl.classList.remove('fading');
+      if (realEl) realEl.textContent = '';
+      if (goldEl) goldEl.textContent = '';
+    }
+  }, 400);
 }
 
 // Mobile touch offset: the reveal window sits ABOVE the touch point on
