@@ -1590,10 +1590,6 @@ document.getElementById('scratchpad-context-create-fragment')?.addEventListener(
   await createFragmentFromText(selectedText);
 });
 
-document.getElementById('scratchpad-fragment-strip')?.addEventListener('click', () => {
-  createFragmentAndOpen();
-});
-
 // createFragmentFromText(content) — like createFragmentAndOpen, but for
 // content arriving pre-written (the scratchpad-selection path) rather
 // than starting blank.
