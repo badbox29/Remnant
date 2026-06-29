@@ -1199,21 +1199,6 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 .scratchpad-input::placeholder { color: var(--muted); opacity: .6; }
 
-/* "+ Create Fragment" strip — a fixed-height flex sibling below the
-   textarea (which keeps flex:1 and simply gets a little shorter), not
-   an overlay, so it never covers scratchpad content. */
-.scratchpad-fragment-strip {
-  flex-shrink: 0;
-  padding: .6rem 1rem;
-  text-align: center;
-  font-size: .82rem;
-  font-style: italic;
-  color: var(--brass);
-  border-top: 1px solid var(--border);
-  cursor: pointer;
-}
-.scratchpad-fragment-strip:hover { background: var(--paper); color: var(--brass-dark); }
-
 /* Custom scratchpad context menu — only shown on right-click WITH an
    active text selection (see app.js); positioned absolutely at the
    cursor. */
