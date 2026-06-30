@@ -228,6 +228,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
   line-height: 1;
   transition: color .25s ease;
 }
+.sync-indicator .ico-star4 { width: 12px; height: 12px; display: block; fill: currentColor; }
 .sync-wrap[data-state="synced"]  .sync-indicator { color: var(--sync-synced); }
 .sync-wrap[data-state="pending"] .sync-indicator { color: var(--sync-pending); }
 .sync-wrap[data-state="offline"] .sync-indicator { color: var(--sync-offline); }
@@ -277,6 +278,7 @@ button, input, textarea { font-family: inherit; font-size: inherit; color: inher
 .sync-legend-text { color: var(--muted); }
 .sync-legend-text b { color: var(--ink); font-weight: 600; }
 .sync-swatch { font-size: .7rem; line-height: 1.4; flex: 0 0 auto; }
+.sync-swatch .ico-star4 { width: 11px; height: 11px; display: block; margin-top: 2px; fill: currentColor; }
 .sync-swatch.s-synced  { color: var(--sync-synced); }
 .sync-swatch.s-pending { color: var(--sync-pending); }
 .sync-swatch.s-syncing { color: var(--sync-syncing); }
