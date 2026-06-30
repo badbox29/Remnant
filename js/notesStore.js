@@ -131,12 +131,25 @@ const NotesStore = (() => {
           db.createObjectStore(DELETION_LOG_STORE, { autoIncrement: true });
         }
       };
-      req.onsuccess = e => { resolve(e.target.result); };
+      req.onsuccess = e => {
+        const db = e.target.result;
+        // Another tab opening the DB at a higher version sends us a
+        // versionchange — close this connection so we don't block the
+        // upgrade, and drop the cache so the next call reopens fresh.
+        db.onversionchange = () => { db.close(); _dbPromise = null; };
+        // If the connection is closed out from under us (browser reclaiming
+        // resources, post-versionchange close, etc.), stop handing out the
+        // dead handle: null the cache so the next openDB() reopens. Without
+        // this, every later transaction throws InvalidStateError and — because
+        // the write paths swallow errors — silently drops data for the rest
+        // of the session.
+        db.onclose = () => { _dbPromise = null; };
+        resolve(db);
+      };
       req.onerror   = e => { _dbPromise = null; reject(e.target.error); }; // clear cache on failure so a later call can retry, rather than permanently caching a rejected promise
     });
     return _dbPromise;
   }
-
   async function store(name, mode) {
     const db = await openDB();
     return db.transaction(name, mode).objectStore(name);
