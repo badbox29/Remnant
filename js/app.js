@@ -49,6 +49,8 @@ const NAV_ICON_DUST = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAYCAY
 
 const App = {
   data: null,           // localStorage-shaped object: account/tab metadata only
+  syncStatus: null,      // 'synced' | 'pending' | 'syncing' | 'offline' — drives the dot
+  _lastFocusPullAt: 0,   // throttle for pull-on-focus
   openNotes: {},         // in-memory cache of notes currently open in tabs: { [id]: note }
   activeNoteId: null,
   syncCheckTimer: null,
@@ -197,14 +199,28 @@ function saveLocal() {
 function markDirty() {
   App.data.pendingSync  = true;
   App.data.lastModified = Date.now();
+  if (App.syncStatus !== 'syncing') App.syncStatus = 'pending';
   saveLocal();
   updateSyncIndicator();
 }
 
+// setSyncStatus(s) — record the current sync state and repaint the dot.
+function setSyncStatus(s) {
+  App.syncStatus = s;
+  updateSyncIndicator();
+}
+
 function updateSyncIndicator() {
-  const el = document.getElementById('sync-indicator');
-  if (!el) return;
-  el.style.display = (App.data?.pendingSync && getWorkerUrl()) ? '' : 'none';
+  const wrap = document.getElementById('sync-wrap');
+  if (!wrap) return;
+  // The dot only means anything when syncing is actually configured. Guests
+  // and local-only setups have nothing to sync, so hide it entirely.
+  if (Auth.isGuest?.() || !getWorkerUrl()) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  const state = App.syncStatus || (App.data?.pendingSync ? 'pending' : 'synced');
+  wrap.dataset.state = state;
+  const label = { synced: 'Synced', pending: 'Unsynced changes', syncing: 'Syncing…', offline: 'Offline — changes saved here' }[state] || '';
+  wrap.setAttribute('aria-label', `Sync: ${label}`);
 }
 
 // reportPersist(ok, msg) — surface a failed IndexedDB write to the user.
@@ -356,6 +372,7 @@ async function pushToWorker() {
   // removing here. The change stays saved locally and goes up on the next
   // successful sync.
   let serverBlob;
+  setSyncStatus('syncing');
   try {
     const getHeaders = await Auth._authHeaders('GET', token, '');
     const getRes = await fetch(`${base}/storage/${encodeURIComponent(token)}/profile`, { headers: getHeaders });
@@ -366,16 +383,19 @@ async function pushToWorker() {
         // Token was migrated/forwarded on another device — let boot's
         // pullFromWorker handle that properly rather than guessing here.
         console.warn('[Remnant] pushToWorker: token migrated; aborting push, boot will reconcile');
+        setSyncStatus('offline');
         return false;
       }
       const j = await getRes.json();
       serverBlob = j.value ?? j;
     } else {
       console.warn(`[Remnant] pushToWorker: pre-push read failed (${getRes.status}); aborting push, staying dirty`);
+      setSyncStatus('offline');
       return false;
     }
   } catch (e) {
     console.warn('[Remnant] pushToWorker: pre-push read error; aborting push, staying dirty:', e);
+    setSyncStatus('offline');
     return false;
   }
 
@@ -393,15 +413,17 @@ async function pushToWorker() {
       App.data.pendingSync  = false;
       App.data.lastSyncTime = Date.now();
       saveLocal();
-      updateSyncIndicator();
+      setSyncStatus('synced');
       updateLastSyncedLabel();
     } else {
       const errText = await res.text().catch(() => String(res.status));
       console.error(`[Remnant] pushToWorker failed (${res.status}):`, errText);
+      setSyncStatus('offline');
     }
     return res.ok;
   } catch(e) {
     console.error('[Remnant] pushToWorker network error:', e);
+    setSyncStatus('offline');
     return false;
   }
 }
@@ -477,8 +499,51 @@ function bestEffortPushOnHide() {
   pushToWorker();
 }
 
+// pullMergeOnFocus() — when the tab is brought back to the foreground, pull
+// the latest server state and merge it in, so a returning device starts from
+// current data instead of waiting for a reboot. Throttled. Crucially this
+// refreshes ONLY the nav tree and tab labels — it never calls renderAll(),
+// because that rehydrates and re-renders the active editor, which would stomp
+// an in-progress, not-yet-autosaved edit. Open tabs keep their in-memory copy
+// and reconcile on their next save; only the nav/structure updates live.
+async function pullMergeOnFocus() {
+  if (Auth.isGuest() || !getWorkerUrl()) return;
+  if (Date.now() - (App._lastFocusPullAt || 0) < 30000) return; // at most once per 30s
+  App._lastFocusPullAt = Date.now();
+  setSyncStatus('syncing');
+  try {
+    const remote = await pullFromWorker();
+    if (remote) {
+      const { notes, structure, scratchpad } = remote;
+      const [localNotes, localBooks, localChapters] = await Promise.all([
+        NotesStore.getAll(), NotesStore.getAllBooks(), NotesStore.getAllChapters(),
+      ]);
+      const tombstones = gcTombstones(reconcileTombstones(remote.tombstones, App.data.tombstones));
+      App.data.tombstones = tombstones; // keep this device's session metadata; adopt only merged tombstones
+      await Promise.all([
+        NotesStore.replaceAll(applyTombstones(reconcileById(notes, localNotes), tombstones)),
+        NotesStore.replaceAllBooks(applyTombstones(reconcileById(structure?.books, localBooks), tombstones)),
+        NotesStore.replaceAllChapters(applyTombstones(reconcileById(structure?.chapters, localChapters), tombstones)),
+      ]);
+      const localPad = await NotesStore.getScratchpad();
+      if (scratchpad && (!localPad || (scratchpad.updatedAt || 0) > (localPad.updatedAt || 0))) {
+        await NotesStore.setScratchpad(scratchpad.content || '');
+      }
+      saveLocal();
+      await loadNavData();   // structure only — does NOT touch open editors
+      renderNavTree();
+      renderTabs();          // labels may have changed elsewhere
+    }
+  } catch (e) {
+    console.warn('[Remnant] pull-on-focus failed:', e);
+  } finally {
+    setSyncStatus(App.data.pendingSync ? 'pending' : 'synced');
+  }
+}
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') bestEffortPushOnHide();
+  else if (document.visibilityState === 'visible') pullMergeOnFocus();
 });
 window.addEventListener('beforeunload', bestEffortPushOnHide);
 
@@ -5120,6 +5185,7 @@ async function boot() {
   const ok = await Auth.bootCheck(tokenBeforePull);
   if (!ok) return;
 
+  App.syncStatus = App.data.pendingSync ? 'pending' : 'synced';
   await renderAll();
   if (!Auth.isGuest()) startSyncPing();
   // Catch up on a sync immediately if we crossed the threshold while away.
