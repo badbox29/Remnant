@@ -644,18 +644,36 @@ async function createNote(chapterId = null) {
   const siblingNotes = Object.values(App.noteSummaries).filter(n => n.chapterId === chapterId);
   const order = nextOrder(siblingNotes);
   const note = { id, chapterId, title: '', content: '', order, createdAt: Date.now(), updatedAt: Date.now() };
-  await NotesStore.set(id, note);
+
+  // Persist the note before opening a tab or rendering, so a failed write can
+  // never appear as a saved, open Remnant (the Scroll/Remnant loss bug).
+  const noteOk = await NotesStore.set(id, note);
+  if (!noteOk) {
+    showToast("Couldn't create Remnant — nothing was saved. Try again.");
+    return null;
+  }
+
+  // If it's filed under a Scroll, link it there too. Persist the updated Scroll
+  // before mutating the live copy. A failed link is a SOFT failure: the Remnant
+  // already committed and its own chapterId is intact, so it's still saved and
+  // filed — only the Scroll's child-ordering array misses it, which self-heals.
+  // That's not a reason to throw away a Remnant that already persisted.
+  if (chapterId && App.chapters[chapterId]) {
+    const chapter = App.chapters[chapterId];
+    const updatedChapter = { ...chapter, noteIds: [...chapter.noteIds, id], updatedAt: Date.now() };
+    const linkOk = await NotesStore.setChapter(chapterId, updatedChapter);
+    if (linkOk) App.chapters[chapterId] = updatedChapter;
+    else console.warn('[Remnant] Remnant saved but its Scroll-link write failed:', id);
+  }
+
   App.openNotes[id] = note;
   App.noteSummaries[id] = { id, title: '', chapterId, order, updatedAt: note.updatedAt };
-  if (chapterId && App.chapters[chapterId]) {
-    App.chapters[chapterId].noteIds.push(id);
-    await NotesStore.setChapter(chapterId, App.chapters[chapterId]);
-  }
   App.data.tabState.openIds.push(id);
   setActiveNote(id);
   markDirty();
   renderTabs();
   renderNavTree();
+  return id;
 }
 
 async function openNoteInTab(id) {
@@ -1630,7 +1648,15 @@ async function createBook(name) {
     chapterIds: [], order: nextOrder(existingBooks),
     createdAt: Date.now(), updatedAt: Date.now(),
   };
-  await NotesStore.setBook(id, book);
+
+  // Persist before touching in-memory state or the UI, so a failed write can
+  // never render as a saved Corpus.
+  const ok = await NotesStore.setBook(id, book);
+  if (!ok) {
+    showToast("Couldn't save Corpus — nothing was saved. Try again.");
+    return null;
+  }
+
   App.books[id] = book;
   setBookExpanded(id, true); // a freshly created corpus opens expanded — it's empty, show the "+ New Scroll" row right away
   markDirty();
@@ -1950,7 +1976,7 @@ document.getElementById('nav-new-book-btn')?.addEventListener('click', async () 
   const id = await createBook('Untitled Corpus');
   // Immediately offer to rename — a brand new corpus with no name yet is
   // the one moment an inline-rename prompt is welcome rather than intrusive.
-  startInlineRename('book', id);
+  if (id) startInlineRename('book', id);
 });
 
 // ─── Loading the tree from IndexedDB ───────────────────────────────
