@@ -1,1822 +1,542 @@
-/* ════════════════════════════════════════════════════════════════
-   Remnant — styles.css
-   Palette: warm paper & ink, aged-brass accent. A notes tool should
-   feel like a well-kept notebook, not a SaaS dashboard.
-   ════════════════════════════════════════════════════════════════ */
+/* ============================================================
+   Rivulet — styles.css
+   Theme: a calm water surface where money drains away in streams.
+   Cool, readable base; warmth (ember) only where it carries meaning
+   — cost, price increases, leaks. Flow is encoded structurally:
+   stream widths are cost, gradients fade rightward into an arrowhead.
+   ============================================================ */
 
 :root {
-  --paper:       #F7F4ED;
-  --paper-dark:  #EFEAE0;
-  --ink:         #2B2823;
-  --muted:       #6B6256;
-  --brass:       #8A6F4E;
-  --brass-dark:  #6E5639;
-  --ink-soft:    #4F4337; /* sampled directly from the empty-state mockup's heading — sits between --ink and --brass-dark, no existing token matched closely enough */
-  --border:      #D8CFC0;
-  --red:         #A8443B;
-  --oxide:       #7A3B2E;
-  --oxide-hover: #8a352e;
-  --green:       #5C7A5E;
-  --blue-pale:   #DDE6E2;
-  --blue-text:   #2d5246;
-  --badge-token-bg: #F0E6D2;
-  --gold-vivid:  #D4A72C;
-  --shadow-ink:  43,40,35;
+  /* ── Water / ink ── */
+  --abyss:    #0A2630;   /* deepest ink — headings, dark text */
+  --deep:     #103D49;   /* body text */
+  --current:  #15788A;   /* primary accent (teal) */
+  --flow:     #2FB4C4;   /* bright cyan — flow gradient head */
+  --flow-pale:#9FDDE0;   /* aqua — gradient tail / fills */
 
-  /* Aliases referenced inline by auth.js (ported from Refectory, where
-     these named a slightly different palette). Defining them here means
-     the wizard's "in progress" / disabled-field styling matches Remnant's
-     palette rather than silently falling back to auth.js's hardcoded
-     fallback hex values. */
-  --gold2:       var(--brass);
-  --cream-dark:  var(--paper-dark);
+  /* ── Surfaces ── */
+  --surface:  #FFFFFF;   /* cards, modals */
+  --paper:    #EBF2F3;   /* app background */
+  --paper-2:  #E0EBEC;   /* insets, hovers */
+  --line:     #CFDEE0;   /* hairlines */
 
-  --font-display: 'Source Serif 4', Georgia, 'Times New Roman', serif;
-  --font-body:    -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  --font-mono:    'SF Mono', 'Cascadia Code', Consolas, monospace;
+  /* ── Text ── */
+  --muted:    #5C7176;   /* secondary text */
+  --faint:    #84999C;   /* tertiary */
 
-  --r-sm: 4px;
-  --r-md: 7px;
+  /* ── Semantic warmth & growth ── */
+  --ember:    #C85A34;   /* cost, attention, leaks */
+  --ember-pale:#F4E0D6;
+  --danger:   #B5453B;   /* price increases, cancel-asap */
+  --reclaimed:#3E8E6F;   /* savings, reclaimed flow, "good" */
+  --reclaimed-pale:#D8EAE2;
+
+  /* ── Themeable surfaces & tints (overridden under [data-theme="dark"]) ── */
+  --topbar-bg:  rgba(235,242,243,.85);  /* translucent top bar */
+  --solid:      #0A2630;   /* filled emphasis: active chip, badges (NOT ink) */
+  --on-solid:   #EAF4F5;   /* text/icon on --solid */
+  --tint-teal:  #E2F0F2;   /* pale teal badge backgrounds */
+  --tint-danger:#F6E4E2;   /* pale danger hover */
+  --focus-ring: rgba(21,120,138,.12);
+  --scrim:      rgba(10,38,48,.42);      /* modal overlay */
+  color-scheme: light;
+
+  /* ── Auth module expects these (var(--x, fallback)) ── */
+  --gold2:    var(--current);
+  --green:    var(--reclaimed);
+  --red:      var(--danger);
+  --border:   var(--line);
+  --cream-dark: var(--paper-2);
+
+  /* ── Type ── */
+  --font-display: 'Bricolage Grotesque', Georgia, serif;
+  --font-body:    'Inter Tight', system-ui, -apple-system, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, Menlo, monospace;
+
+  /* ── Shape ── */
+  --r-sm: 7px;
+  --r:    11px;
+  --r-lg: 16px;
+  --shadow: 0 1px 2px rgba(10,38,48,.05), 0 8px 24px rgba(10,38,48,.06);
+  --shadow-lg: 0 12px 48px rgba(10,38,48,.18);
+
+  /* ── Motion ── (tune here; everything references these) */
+  --motion-fast: .16s;
+  --motion:      .30s;
+  --motion-slow: .58s;
+  --ease-out:    cubic-bezier(.22, 1, .36, 1);   /* settles like water finding level */
+
+  --maxw: 880px;
 }
 
-/* ── Dark mode — silver-on-midnight palette ───────────────────────────
-   Activated by adding .dark to <html>. All UI tokens are redefined here;
-   components use the tokens throughout so no component-level overrides
-   are needed for colour alone. The silver accent replaces brass for a
-   cooler nocturnal feel while --red, --green stay recognisable. */
-html.dark {
-  --paper:       #1C1A18;
-  --paper-dark:  #242220;
-  --ink:         #E8E4DC;
-  --muted:       #857E76;
-  --brass:       #A8A098;    /* silver — replaces warm brass */
-  --brass-dark:  #C8C0B4;    /* lighter silver for hover/emphasis */
-  --ink-soft:    #B0A898;
-  --border:      #38352F;
-  --red:         #C0524A;
-  --oxide:       #9A5244;
-  --oxide-hover: #b05a50;
-  --green:       #6A8A6C;
-  --blue-pale:   #2A3530;
-  --blue-text:   #8abfaf;
-  --badge-token-bg: #2E2A22;
-  --gold-vivid:  #D4A72C;
-  --shadow-ink:  0,0,0;
-  --gold2:       var(--brass);
-  --cream-dark:  var(--paper-dark);
+/* ─────────────────────────────────────────────────────────────────
+   Dark theme — a deep-water palette. JS sets data-theme="dark" on <html>
+   (an inline <head> script applies it pre-paint to avoid a flash). Every
+   color is token-driven, so these overrides re-skin the whole app.
+   ───────────────────────────────────────────────────────────────── */
+:root[data-theme="dark"] {
+  /* Ink lightens; teals brighten a touch to hold contrast on dark */
+  --abyss:    #E6F1F2;
+  --deep:     #C2D6D9;
+  --current:  #3FB2C4;
+  --flow:     #4ECEDD;
+  --flow-pale:#2C6B77;
+
+  /* Surfaces — deep water; cards sit just above the background */
+  --surface:  #102A33;
+  --paper:    #0A1D24;
+  --paper-2:  #16323B;
+  --line:     #234851;
+
+  /* Text */
+  --muted:    #8BA3A8;
+  --faint:    #647C82;
+
+  /* Semantic warmth & growth — brightened; pales become dark tints */
+  --ember:    #E78A5E;
+  --ember-pale:#3A241B;
+  --danger:   #DD6055;
+  --reclaimed:#54B58E;
+  --reclaimed-pale:#1B3A30;
+
+  /* Themeable surfaces & tints */
+  --topbar-bg:  rgba(10,29,36,.82);
+  --solid:      #2A7682;   /* active chip reads as a teal pill on dark */
+  --on-solid:   #EAF6F7;
+  --tint-teal:  #16343C;
+  --tint-danger:#3A211E;
+  --focus-ring: rgba(78,206,221,.22);
+  --scrim:      rgba(0,0,0,.6);
+
+  /* Shadows — black-based, slightly stronger to register on dark */
+  --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.4);
+  --shadow-lg: 0 16px 50px rgba(0,0,0,.55);
+
+  color-scheme: dark;
 }
 
-/* ── Theme toggle button ──────────────────────────────────────────────
-   Icon-only button in topbar, right of Settings. Icon placeholder —
-   will be replaced with proper art assets. */
-.btn-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  border-radius: var(--r-sm);
-  color: var(--muted);
-  font-size: 1.1rem;
-  transition: background .15s, color .15s;
-}
-.btn-icon:hover {
-  background: var(--paper-dark);
-  color: var(--ink);
-}
-/* Placeholder sun/moon glyphs until icon assets are ready */
-.theme-toggle-btn::before {
-  content: '☀';
-  font-size: 1rem;
-  line-height: 1;
-}
-html.dark .theme-toggle-btn::before {
-  content: '☽';
-}
-
+/* Theme toggle glyph: moon in light mode, sun in dark mode. */
+#btn-theme .icon-sun { display: none; }
+:root[data-theme="dark"] #btn-theme .icon-moon { display: none; }
+:root[data-theme="dark"] #btn-theme .icon-sun  { display: block; }
 
 * { box-sizing: border-box; }
 
 html, body {
   margin: 0;
-  height: 100%;
-  overflow: hidden; /* the page itself should NEVER scroll — only specific inner elements (the note body textarea, the nav tree, etc.) own their own scroll. If anything overflows enough to make body scrollable, that's a sign something upstream is leaking height it shouldn't, not a legitimate second scroll context. */
   background: var(--paper);
-  color: var(--ink);
+  color: var(--deep);
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.5;
-  display: flex;
-  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
 }
 
-button, input, textarea { font-family: inherit; font-size: inherit; color: inherit; }
-
-.f13 { font-size: .82rem; }
-.lh  { line-height: 1.55; }
+h1, h2, h3 { font-family: var(--font-display); color: var(--abyss); margin: 0; letter-spacing: -.01em; }
 .muted { color: var(--muted); }
-.w100 { width: 100%; }
+.f13 { font-size: .82rem; }
+.lh { line-height: 1.55; }
 .mt-8 { margin-top: .5rem; }
 .row { display: flex; align-items: center; }
 .gap-8 { gap: .5rem; }
+code { font-family: var(--font-mono); }
 
-/* ── Top bar ─────────────────────────────────────────────────────── */
-
+/* ── Top bar ─────────────────────────────────────────────────── */
 .topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: .75rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--paper);
-  position: relative;
-  z-index: 50;
-  flex-shrink: 0;
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 1rem;
+  padding: .7rem clamp(1rem, 4vw, 2rem);
+  background: var(--topbar-bg);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
 }
-
-.topbar-left { display: flex; align-items: center; gap: .35rem; }
-
-.nav-toggle-btn {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  border-radius: var(--r-sm);
-}
-.nav-toggle-btn:hover { background: var(--paper-dark); }
-.nav-toggle-bar {
+.brand { display: flex; align-items: center; gap: .5rem; }
+.brand-mark {
   display: block;
-  width: 18px;
-  height: 2px;
-  margin: 0 auto;
-  background: var(--ink);
-  border-radius: 1px;
-  transition: transform .18s, opacity .18s;
+  height: 1.7rem; width: auto;
+  transform: translateY(1px);
 }
-/* When the panel is open, morph the three bars into an "x" — a small,
-   specific signature for the one interactive control that owns the tree. */
-.nav-panel.open ~ .topbar .nav-toggle-bar:nth-child(1) { transform: translateY(6px) rotate(45deg); }
-.nav-panel.open ~ .topbar .nav-toggle-bar:nth-child(2) { opacity: 0; }
-.nav-panel.open ~ .topbar .nav-toggle-bar:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
-
-.brand-logo {
-  height: 42px;
-  width: auto;
-  display: block;
+.brand-name {
+  font-family: var(--font-display); font-weight: 800; font-size: 1.25rem;
+  color: var(--abyss); letter-spacing: -.02em;
 }
-
-.brand-wordmark { display: flex; align-items: baseline; gap: .35rem; }
-
-.brand {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1.3rem;
-  letter-spacing: .01em;
-  color: var(--ink);
+.topbar-search { flex: 1; max-width: 360px; }
+.search-input {
+  width: 100%; padding: .5rem .8rem;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 999px; font: inherit; font-size: .9rem; color: var(--deep);
 }
+.search-input:focus { outline: none; border-color: var(--current); box-shadow: 0 0 0 3px var(--focus-ring); }
+.topbar-actions { display: flex; align-items: center; gap: .6rem; margin-left: auto; }
+.sync-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--ember); box-shadow: 0 0 0 3px var(--ember-pale);
+}
+.icon-btn {
+  display: grid; place-items: center;
+  width: 36px; height: 36px; padding: 0;
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-sm);
+  color: var(--deep); font-size: 1.05rem; cursor: pointer;
+}
+.icon-btn:hover { background: var(--paper-2); }
 
-.brand-version {
-  font-size: .68rem;
-  font-weight: 600;
-  color: var(--muted);
-  align-self: flex-end;
-  margin-bottom: .15rem; /* nudges it to sit near the wordmark's baseline, not its cap */
+/* ── App layout ──────────────────────────────────────────────── */
+.app {
+  max-width: var(--maxw); margin: 0 auto;
+  padding: clamp(1.2rem, 4vw, 2.4rem) clamp(1rem, 4vw, 2rem) 5rem;
+  display: flex; flex-direction: column; gap: 1.4rem;
 }
 
-.topbar-actions { display: flex; align-items: center; gap: .6rem; }
-
-.link-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: .82rem;
-  color: var(--muted);
-  text-decoration: underline;
-  text-decoration-color: var(--border);
-  padding: .2rem .1rem;
-  transition: color .15s, text-decoration-color .15s;
+/* ── Hero / flow ─────────────────────────────────────────────── */
+.eyebrow {
+  margin: 0; text-transform: uppercase; letter-spacing: .16em;
+  font-size: .7rem; font-weight: 600; color: var(--current);
 }
-.link-btn:hover { color: var(--brass-dark); text-decoration-color: var(--brass); }
+.hero-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 
-.sync-indicator {
-  color: var(--brass);
-  font-size: .7rem;
-  animation: pulse 2s ease-in-out infinite;
+.flow-toggle { display: inline-flex; background: var(--paper-2); border-radius: 999px; padding: 3px; }
+.flow-toggle-btn {
+  border: 0; background: transparent; cursor: pointer;
+  padding: .3rem .8rem; border-radius: 999px;
+  font: inherit; font-size: .8rem; font-weight: 500; color: var(--muted);
 }
-@keyframes pulse { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
+.flow-toggle-btn.is-active { background: var(--surface); color: var(--abyss); box-shadow: var(--shadow); }
 
-/* ── Buttons ─────────────────────────────────────────────────────── */
+.flow-figure { display: flex; align-items: baseline; gap: .25rem; margin-top: .35rem; }
+.flow-amount {
+  font-family: var(--font-display); font-weight: 800;
+  font-size: clamp(2.8rem, 9vw, 4.5rem); line-height: 1;
+  color: var(--abyss); font-variant-numeric: tabular-nums; letter-spacing: -.03em;
+  transition: color .4s ease;
+}
+/* Capacity bands — neutral under 75%, warm approaching, red over. */
+.flow-amount.cap-near { color: var(--ember); }
+.flow-amount.cap-over { color: var(--danger); }
+.flow-line {
+  position: relative; flex: 1; height: 6px; margin-bottom: .6rem; margin-left: .4rem;
+  background: linear-gradient(90deg, var(--current), var(--flow) 70%, rgba(47,180,196,.15));
+  border-radius: 999px; min-width: 40px;
+}
+.flow-line-head { position: absolute; right: -2px; top: 50%; transform: translateY(-50%); color: var(--flow); font-size: .8rem; }
+.flow-substats { margin: .7rem 0 0; color: var(--muted); font-size: .92rem; }
+.flow-substats b { color: var(--deep); font-weight: 600; font-variant-numeric: tabular-nums; }
+.flow-substats .leak-stat { color: var(--ember); font-weight: 600; }
+.flow-substats .cap-stat { color: var(--muted); }
+.flow-substats .cap-stat.cap-stat-near { color: var(--ember); }
+.flow-substats .cap-stat.cap-stat-over { color: var(--danger); }
 
+/* Stream bars — width is cost; gradient drains rightward */
+.flow-streams { margin-top: 1.3rem; display: flex; flex-direction: column; gap: .5rem; }
+.stream-bar-row { display: grid; grid-template-columns: 120px 1fr auto; align-items: center; gap: .75rem; }
+.stream-bar-name { font-size: .85rem; color: var(--deep); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stream-bar-track { position: relative; height: 16px; }
+.stream-bar-fill {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--current), var(--flow) 85%, rgba(159,221,224,.35));
+  position: relative; min-width: 8px;
+  animation: riv-fill var(--motion-slow) var(--ease-out);
+}
+.stream-bar-fill::after {
+  content: '▶'; position: absolute; right: -11px; top: 50%; transform: translateY(-50%);
+  color: var(--flow-pale); font-size: .62rem;
+}
+.stream-bar-amt { font-family: var(--font-mono); font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Bars header: view toggle + clear */
+.bars-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-top: 1.3rem; }
+.view-toggle { display: inline-flex; background: var(--paper-2); border-radius: 999px; padding: 3px; }
+.view-toggle-btn {
+  border: 0; background: transparent; cursor: pointer;
+  padding: .3rem .8rem; border-radius: 999px;
+  font: inherit; font-size: .8rem; font-weight: 500; color: var(--muted);
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+.view-toggle-btn.is-active { background: var(--surface); color: var(--abyss); box-shadow: var(--shadow); }
+.bars-head + .flow-streams { margin-top: .6rem; }
+
+/* Clickable category bars */
+.cat-bar-row {
+  cursor: pointer; border-radius: var(--r-sm);
+  padding: .25rem; margin: 0 -.25rem;
+  transition: background var(--motion-fast) ease;
+}
+.cat-bar-row:hover { background: var(--paper-2); }
+.cat-bar-row.is-selected { background: var(--paper-2); }
+.cat-bar-row.is-selected .stream-bar-name { color: var(--abyss); font-weight: 600; }
+.cat-bar-row:focus-visible { outline: 2px solid var(--current); outline-offset: 1px; }
+
+/* Active-category indicator in the streams panel head */
+.stream-scope { display: inline-flex; vertical-align: middle; }
+.scope-chip {
+  font: inherit; font-size: .72rem; font-weight: 600; cursor: pointer;
+  padding: .12rem .5rem; border-radius: 999px;
+  background: var(--paper-2); color: var(--current); border: 1px solid var(--line);
+  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease;
+}
+.scope-chip:hover { border-color: var(--current); }
+
+/* ── Bulk import modal ───────────────────────────────────────── */
+.import-intro { color: var(--deep); margin: 0 0 .5rem; }
+.import-steps { margin: 0 0 .8rem; padding-left: 1.2rem; color: var(--muted); font-size: .9rem; }
+.import-steps li { margin: .15rem 0; }
+.import-note { font-size: .8rem; color: var(--muted); background: var(--paper-2); border-radius: var(--r-sm); padding: .6rem .7rem; margin: 0 0 1rem; line-height: 1.5; }
+.import-note code { font-family: var(--font-mono); font-size: .92em; background: var(--surface); padding: .05rem .3rem; border-radius: 4px; }
+.import-download { width: 100%; }
+.import-divider { height: 1px; background: var(--line); margin: 1.1rem 0; }
+.import-file { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+.import-pick { width: 100%; cursor: pointer; }
+.import-result { margin-top: .9rem; }
+.import-result:empty { margin-top: 0; }
+.import-ok { color: var(--reclaimed); font-weight: 600; margin: .2rem 0; }
+.import-warn { color: var(--ember); font-weight: 500; margin: .2rem 0; }
+.import-errors { margin: .4rem 0 0; padding-left: 1.1rem; font-size: .82rem; color: var(--muted); }
+.import-errors li { margin: .1rem 0; }
+
+/* ── Projection chart ────────────────────────────────────────── */
+.proj-toggle-btn {
+  border: 0; background: transparent; cursor: pointer;
+  padding: .3rem .7rem; border-radius: 999px;
+  font: inherit; font-size: .78rem; font-weight: 500; color: var(--muted);
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+.proj-toggle-btn.is-active { background: var(--surface); color: var(--abyss); box-shadow: var(--shadow); }
+.projection-headline { margin: 0 0 .6rem; color: var(--deep); font-size: .95rem; }
+.projection-headline b { font-family: var(--font-display); font-weight: 800; color: var(--abyss); font-variant-numeric: tabular-nums; }
+.projection-chart { width: 100%; }
+.proj-svg { width: 100%; height: auto; display: block; }
+.chart-grid { stroke: var(--line); stroke-width: 1; }
+.chart-ylabel, .chart-xlabel { fill: var(--faint); font-family: var(--font-mono); font-size: 10px; }
+
+/* approximate-FX note in the hero substats */
+.fx-note { color: var(--faint); font-style: italic; cursor: help; }
+
+/* ── Price-history sparkline (in the stream modal) ───────────── */
+.price-history { margin-bottom: 1rem; padding: .7rem .8rem; background: var(--paper-2); border-radius: var(--r-sm); }
+.ph-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: .2rem; }
+.ph-title { font-size: .78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.ph-chg { font-size: .78rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ph-chg.ph-up { color: var(--danger); }
+.ph-chg.ph-down { color: var(--reclaimed); }
+.ph-chg.ph-flat { color: var(--muted); }
+.ph-svg { width: 100%; height: auto; display: block; }
+.ph-lbl { fill: var(--deep); font-family: var(--font-mono); font-size: 11px; font-weight: 500; }
+.ph-date { fill: var(--faint); font-family: var(--font-mono); font-size: 9px; }
+
+/* ── Panels ──────────────────────────────────────────────────── */
+.panel {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); padding: 1.2rem 1.3rem; box-shadow: var(--shadow);
+}
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; }
+.panel-title { font-size: 1.05rem; font-weight: 700; display: flex; align-items: baseline; gap: .5rem; }
+.panel-sub { font-family: var(--font-body); font-size: .72rem; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+.panel-total { font-family: var(--font-mono); font-size: .9rem; color: var(--deep); font-variant-numeric: tabular-nums; }
+
+/* Upcoming list */
+.upcoming-list { list-style: none; margin: 0; padding: 0; }
+.upcoming-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .9rem; padding: .55rem 0; border-top: 1px solid var(--line); }
+.upcoming-row:first-child { border-top: 0; }
+.upcoming-date { text-align: center; min-width: 42px; }
+.upcoming-date .d { font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; color: var(--abyss); line-height: 1; }
+.upcoming-date .m { font-size: .64rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.upcoming-name { font-weight: 500; color: var(--deep); }
+.upcoming-when { font-size: .78rem; color: var(--muted); }
+.upcoming-when.soon { color: var(--ember); }
+.upcoming-amt { font-family: var(--font-mono); font-size: .88rem; color: var(--deep); font-variant-numeric: tabular-nums; }
+
+/* ── Chips / filters ─────────────────────────────────────────── */
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1rem; }
+.chip {
+  border: 1px solid var(--line); background: transparent; cursor: pointer;
+  padding: .28rem .7rem; border-radius: 999px; font: inherit; font-size: .8rem; color: var(--muted);
+  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+.chip:hover { border-color: var(--current); color: var(--deep); }
+.chip.is-active { background: var(--solid); border-color: var(--solid); color: var(--on-solid); }
+
+/* ── Streams list ────────────────────────────────────────────── */
+.streams-list { display: flex; flex-direction: column; }
+.stream-row {
+  display: grid; grid-template-columns: 1fr auto; gap: .3rem 1rem; align-items: center;
+  padding: .8rem .2rem; border-top: 1px solid var(--line); cursor: pointer;
+}
+.stream-row:first-child { border-top: 0; }
+.stream-row:hover { background: var(--paper-2); border-radius: var(--r-sm); }
+.stream-main { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+.stream-name { font-weight: 600; color: var(--abyss); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stream-meta { grid-column: 1; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: .78rem; color: var(--muted); }
+.stream-cat { display: inline-flex; align-items: center; gap: .3rem; }
+.stream-cat::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--current); display: inline-block; }
+.stream-right { grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: flex-end; gap: .2rem; }
+.stream-amt { font-family: var(--font-mono); font-weight: 500; color: var(--deep); font-variant-numeric: tabular-nums; }
+.stream-amt .per { color: var(--faint); font-size: .72rem; }
+.stream-next { font-size: .75rem; color: var(--muted); }
+.stream-next.soon { color: var(--ember); }
+
+/* status + leak pills */
+.pill { font-size: .68rem; font-weight: 600; padding: .1rem .45rem; border-radius: 999px; letter-spacing: .02em; }
+.pill-trial    { background: var(--tint-teal); color: var(--current); }
+.pill-paused   { background: var(--paper-2); color: var(--muted); }
+.pill-cancelled{ background: var(--paper-2); color: var(--faint); text-decoration: line-through; }
+.pill-leak     { background: var(--ember-pale); color: var(--ember); }
+
+/* ── Empty state ─────────────────────────────────────────────── */
+.empty { text-align: center; padding: 4rem 1rem; }
+.empty-mark { font-size: 3.5rem; color: var(--flow-pale); }
+.empty-title { font-size: 1.4rem; margin-top: .4rem; }
+.empty-text { color: var(--muted); max-width: 32ch; margin: .5rem auto 1.4rem; }
+
+/* ── Buttons ─────────────────────────────────────────────────── */
 .btn {
-  display: inline-flex;
-  align-items: center;
-  gap: .4rem;
-  padding: .45rem .85rem;
-  border-radius: var(--r-md);
-  border: 1px solid transparent;
-  background: transparent;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background .15s, border-color .15s;
-}
-.btn-sm { padding: .32rem .65rem; font-size: .82rem; }
-
-.btn-primary { background: var(--brass); color: var(--paper); }
-.btn-primary:hover { background: var(--brass-dark); }
-
-.btn-outline { border-color: var(--border); background: var(--paper); }
-.btn-outline:hover { background: var(--paper-dark); }
-
-.btn-ghost { color: var(--muted); }
-.btn-ghost:hover { background: var(--paper-dark); color: var(--ink); }
-
-#nav-new-book-btn { color: var(--gold-vivid); opacity: .6; transition: opacity .15s; }
-#nav-new-book-btn:hover { background: transparent; opacity: 1; }
-
-.btn:disabled { opacity: .5; cursor: not-allowed; }
-
-/* ── Main layout ─────────────────────────────────────────────────── */
-
-.main-layout {
-  display: flex;
-  flex: 1;
-  min-height: 0; /* same flex-chain rule as notes-column below it — without this, the flex:1 here can't reliably size against body's own flex column */
-  position: relative; /* anchors the pop-out nav panel */
-}
-
-.notes-column {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0; /* without this, the flex:1 chain below (note-editor -> note-body-wrap -> textarea) can't reliably compute available height — a classic flexbox gotcha where every ancestor in a flex:1 chain needs this, not just the deepest ones */
-  border-right: 1px solid var(--border);
-}
-
-.scratchpad-column {
-  width: 320px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--paper-dark);
-}
-
-/* ── Nav panel (Books > Chapters > Notes + Unfiled) ─────────────────
-   Two layout modes:
-     pop-out (default) — absolute-positioned overlay, slides in over the
-       layout, dismissed by the scrim or the hamburger. Doesn't reflow
-       anything, since a notes tool's primary real estate is the page
-       being written, not the table of contents.
-     pinned — a real flex sibling in .main-layout, claiming permanent
-       width and pushing notes/scratchpad over. Applied via the
-       .nav-pinned class on .main-layout, set by applyNavPanelDOMState()
-       in app.js whenever the user's pinned preference is both true AND
-       the viewport is wide enough (NAV_PIN_MIN_WIDTH) to honor it. */
-
-.nav-panel {
-  position: absolute;
-  top: 0; left: 0; bottom: 0;
-  width: 300px;
-  background: var(--paper);
-  border-right: 1px solid var(--border);
-  box-shadow: 6px 0 24px rgba(var(--shadow-ink),.12);
-  display: flex;
-  flex-direction: column;
-  transform: translateX(-100%);
-  transition: transform .2s ease;
-  z-index: 40;
-}
-.nav-panel.open { transform: translateX(0); }
-
-/* Pinned mode: panel becomes a normal flex item instead of an absolute
-   overlay. flex-shrink: 0 keeps its width fixed even as the notes/
-   scratchpad columns compete for the remaining space. No shadow or
-   z-index needed — it's not floating above anything anymore. */
-.main-layout.nav-pinned .nav-panel {
-  position: relative;
-  flex-shrink: 0;
-  transform: none;
-  box-shadow: none;
-  z-index: auto;
-}
-
-.nav-panel-scrim {
-  /* display is set directly by applyNavPanelDOMState() in app.js, not by
-     a CSS sibling-selector — scrim visibility depends on BOTH "is the
-     panel open" AND "is pinned mode NOT active," which is state CSS
-     alone can't evaluate (pinned-active also depends on viewport width
-     vs. a value defined in JS, not in a media query). Default hidden;
-     JS is the single source of truth from here. */
-  display: none;
-  position: absolute;
-  inset: 0;
-  /* Darkened from the original .18 alpha — pop-out mode should read
-     clearly as "this content is now in the background," not just
-     faintly tinted. */
-  background: rgba(var(--shadow-ink),.42);
-  z-index: 35;
-}
-
-.nav-panel-header {
-  display: flex;
-  align-items: center;
-  gap: .4rem;
-  padding: .85rem 1rem;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.nav-panel-title {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1.02rem;
-  color: var(--brass-dark);
-  flex: 1; /* pushes the pin button and "+ Corpus" to the right edge */
-}
-
-.nav-icon-library {
-  height: 1rem;
-  width: auto;
-  vertical-align: -2px;
-  margin-right: .3rem;
-}
-
-/* Pin toggle — double-chevron-plus-ground-line artwork, matching the
-   same clean material-icon register as the Corpus/Scroll/Remnant/
-   Cipher nav icons. Unpinned: chevrons point UP toward the ground line
-   (the panel could retreat/collapse). Pinned: chevrons point DOWN onto
-   the ground line (anchored, settled in place).
-   Two <img> elements sit in the button (see index.html); exactly one is
-   shown at a time via display none/block, toggled by the .active class
-   — the same pattern as the Illuminate/Obscure button pair elsewhere in
-   this file. Both source images share an IDENTICAL content bounding box
-   (verified at build time, not just assumed), so unlike an earlier hand-
-   drawn parchment/dagger version of this icon, no per-state rescaling
-   was needed to keep them visually matched — toggling between states is
-   a straight asset swap with no separate alignment compensation. */
-.nav-pin-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: flex-end;
-  padding: 0 .35rem;
-  margin-right: -.3rem; /* pulls flush against the panel's right edge, past the header's own padding */
-  border-radius: var(--r-sm);
-  opacity: .6;
-  transition: opacity .15s;
-}
-.nav-pin-btn:hover { background: var(--paper-dark); opacity: .9; }
-.nav-pin-btn.active { opacity: 1; }
-
-.nav-pin-icon {
-  height: .75rem;
-  width: auto;
-  display: block;
-}
-.nav-pin-icon-unpinned { display: block; }
-.nav-pin-icon-pinned   { display: none; }
-.nav-pin-btn.active .nav-pin-icon-unpinned { display: none; }
-.nav-pin-btn.active .nav-pin-icon-pinned   { display: block; }
-
-.nav-tree {
-  flex: 1;
-  overflow-y: auto;
-  padding: .4rem 0 1rem;
-}
-
-/* Tree rows — one shared base class, indentation by level via padding. */
-.nav-row {
-  display: flex;
-  align-items: center;
-  gap: .35rem;
-  padding: .24rem .75rem;
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  font-size: .88rem;
-}
-.nav-row:hover { background: var(--paper-dark); }
-.nav-row.active { background: var(--paper-dark); font-weight: 600; color: var(--brass-dark); }
-
-.nav-row-book    { padding-left: .75rem; font-weight: 600; }
-.nav-row-chapter { padding-left: 1.85rem; }
-.nav-row-note    { padding-left: 2.95rem; }
-.nav-unfiled-wrap {
-  margin-top: .5rem;
-  border-top: 1px solid var(--border);
-  padding-top: .25rem;
-}
-
-.nav-row-unfiled-header { padding-left: .75rem; font-weight: 600; color: var(--muted); margin-top: .5rem; }
-
-/* Loose Remnants / Loose Fragments rows reuse .nav-row-note for its row
-   styling (icon/label layout, hover, etc.) but have no Corpus/Scroll
-   ancestors above them — they sit one level under the section header,
-   the same depth as a Scroll (chapter), not a doubly-nested Remnant.
-   Override the deep note-level indent down to the chapter-level one. */
-.nav-unfiled-children .nav-row-note { padding-left: .75rem; }
-
-.nav-row-caret {
-  width: 14px;
-  flex-shrink: 0;
-  font-size: .7rem;
-  color: var(--muted);
-  transition: transform .15s;
-  text-align: center;
-}
-.nav-row-caret.expanded { transform: rotate(90deg); }
-.nav-row-caret.placeholder { visibility: hidden; } /* notes have no children — keep alignment without a caret */
-
-.nav-row-icon {
-  height: .95rem;
-  width: auto;
-  flex-shrink: 0;
-  opacity: .85;
-}
-
-.nav-row-label {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nav-row-add {
-  font-size: .8rem;
-  color: var(--brass);
-  font-style: italic;
-}
-.nav-row-add:hover { color: var(--brass-dark); }
-
-/* Inline "+" buttons on nav row headers — three-state progressive reveal.
-   Idle: nearly invisible. Row hover: visible but quiet. + hover: gold glow. */
-.nav-row-inline-add {
-  flex-shrink: 0;
-  font-size: .75rem;
-  font-weight: 400;
-  font-style: italic;
-  color: var(--ink);
-  opacity: .38;
-  padding: .05rem .3rem;
-  border-radius: var(--r-sm);
-  margin-left: .15rem;
-  cursor: pointer;
-  transition: opacity .15s, color .12s, transform .12s, text-shadow .12s;
-}
-.nav-row:hover .nav-row-inline-add {
-  opacity: .72;
-}
-.nav-row-inline-add:hover {
-  opacity: 1;
-  color: var(--gold-vivid);
-  text-shadow: 0 0 6px rgba(212, 167, 44, .55);
-  transform: scale(1.15);
-  background: transparent;
-}
-
-/* Position-aware context menu for scroll-level "+" */
-.nav-add-menu {
-  position: fixed;
-  z-index: 1200;
-  background: var(--paper);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  box-shadow: 0 4px 16px rgba(var(--shadow-ink), .18);
-  min-width: 130px;
-  padding: .3rem 0;
-  font-size: .85rem;
-}
-.nav-add-menu-item {
-  padding: .38rem .85rem;
-  cursor: pointer;
-  color: var(--brass);
-  font-style: italic;
-  user-select: none;
-}
-.nav-add-menu-item:hover {
-  background: var(--paper-dark);
-  color: var(--brass-dark);
-}
-.nav-add-menu-item-cipher {
-  color: var(--red);
-}
-.nav-add-menu-item-cipher:hover {
-  color: var(--oxide);
-}
-
-.nav-row-dust-link {
-  cursor: pointer;
-}
-.nav-row-dust-link:hover { color: var(--brass-dark); background: var(--paper-dark); }
-
-/* Fragment drag-to-merge highlight — reuses the same visual language as
-   the Book/Chapter/Note "drop into" highlight (.drop-target-into) for
-   consistency, but is applied/removed by attachFragmentDragHandlers'
-   own self-contained logic, not the shared canDropOn/performDrop system. */
-.nav-row-fragment.drop-target-into {
-  outline: 2px solid var(--brass);
-  outline-offset: -2px;
-  background: var(--paper-dark);
-}
-
-
-/* Cipher rows are distinguished by label color alone — a red tone —
-   rather than a lock-icon badge (the icon itself is the custom Cipher
-   icon, unrelated to this color rule). Targets .nav-row-cipher
-   .nav-row-label specifically (not the whole row) so the caret, delete
-   button, etc. stay in their normal colors and only the title itself
-   reads as "this one's a Cipher." Repeated with the .active selector
-   so the red color still wins when a Cipher is the open tab — without
-   this, .nav-row.active's own color rule (same specificity, comes later
-   in source order) would silently override it. */
-.nav-row-cipher .nav-row-label,
-.nav-row.active.nav-row-cipher .nav-row-label {
-  color: var(--red);
-}
-
-.nav-row-actions {
-  display: none;
-  gap: .3rem;
-  flex-shrink: 0;
-}
-.nav-row:hover .nav-row-actions { display: flex; }
-.nav-row-action-btn {
-  font-size: .8rem;
-  font-style: normal;
-  color: var(--muted) !important;
-  padding: .1rem .25rem;
-  border-radius: var(--r-sm);
-  line-height: 1;
-  cursor: pointer;
-  transition: color .12s, background .12s;
-}
-.nav-row-action-btn:hover { color: var(--oxide) !important; background: transparent; }
-
-/* Drag-and-drop visual feedback */
-.nav-row[draggable="true"] { cursor: grab; }
-.nav-row[draggable="true"] .nav-row-action-btn { cursor: pointer; }
-.nav-row[draggable="true"] .nav-row-inline-add { cursor: pointer; }
-.nav-row.dragging { opacity: .4; }
-
-.nav-row.drop-target-into {
-  outline: 2px solid var(--brass);
-  outline-offset: -2px;
-  background: var(--paper-dark);
-}
-.nav-row.drop-line-above::before,
-.nav-row.drop-line-below::after {
-  content: '';
-  position: absolute;
-  left: .5rem; right: .5rem;
-  height: 2px;
-  background: var(--brass);
-  border-radius: 2px;
-}
-.nav-row.drop-line-above::before { top: 0; }
-.nav-row.drop-line-below::after  { bottom: 0; }
-
-.nav-empty-hint {
-  padding: .4rem 2.95rem;
-  font-size: .8rem;
-  color: var(--muted);
-  font-style: italic;
-}
-
-/* ── Tabs ────────────────────────────────────────────────────────── */
-
-.tab-bar {
-  display: flex;
-  align-items: stretch;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--border);
-  background: var(--paper-dark);
-  flex-shrink: 0;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  transition: scrollbar-color .4s ease;
-}
-.tab-bar:hover {
-  scrollbar-color: var(--border) transparent;
-}
-.tab-bar::-webkit-scrollbar { height: 3px; }
-.tab-bar::-webkit-scrollbar-track { background: transparent; }
-.tab-bar::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 2px;
-  transition: background .4s ease;
-}
-.tab-bar:hover::-webkit-scrollbar-thumb { background: var(--border); }
-
-.tab {
-  display: flex;
-  align-items: center;
-  gap: .45rem;
-  padding: .55rem .9rem;
-  cursor: pointer;
-  white-space: nowrap;
-  border-right: 1px solid var(--border);
-  color: var(--muted);
-  position: relative;
-}
-
-.tab.active {
-  background: var(--paper);
-  color: var(--ink);
-  font-weight: 500;
-}
-
-/* Signature element: active tab gets a small brass tick underneath,
-   like a ribbon bookmark — a quiet, specific mark of "the open one". */
-.tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0; left: .6rem; right: .6rem;
-  height: 2px;
-  background: var(--brass);
-  border-radius: 2px;
-}
-
-.tab-close {
-  opacity: .45;
-  font-size: .85rem;
-  padding: 0 .15rem;
-}
-.tab-close:hover { opacity: 1; color: var(--red); }
-
-.tab-cipher-icon {
-  height: .85rem;
-  width: auto;
-  flex-shrink: 0;
-  opacity: .85;
-}
-
-.tab-fragment-icon {
-  height: .85rem;
-  width: auto;
-  flex-shrink: 0;
-  opacity: .85;
-}
-
-/* Illuminated Cipher tab — small red tick, same position/shape as the
-   active-tab brass underline, but red to distinguish "currently fully
-   exposed" from merely "the active tab." Both can be true at once. */
-.tab-cipher-illuminated::after {
-  content: '';
-  position: absolute;
-  bottom: 0; left: .6rem; right: .6rem;
-  height: 2px;
-  background: var(--red);
-  border-radius: 2px;
-}
-
-.tab-new {
-  padding: .55rem .9rem;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 1.05rem;
-}
-.tab-new:hover { color: var(--brass); background: var(--paper); }
-
-/* ── Note editor ─────────────────────────────────────────────────── */
-
-.note-editor {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 1.25rem 1.75rem;
-  min-height: 0;
-  border: 2px solid transparent;
-  border-radius: var(--r-md);
-  transition: border-color .2s;
-}
-
-/* note-editor-chrome wraps the REAL editor (title row, toolbar, body) —
-   see index.html. Exactly one of {-empty-state, -chrome} is visible at
-   a time, toggled via showEmptyState()/showEditorChrome() in app.js;
-   this wrapper just needs to behave like a transparent pass-through
-   for the flex layout underneath it. */
-.note-editor-chrome {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-/* ── Empty state (nothing open at all) ───────────────────────────────
-   Centered artwork + copy, replacing the editor ENTIRELY rather than
-   just dimming it — matches a mockup design pass (quill-and-inkwell
-   illustration, "The archive awaits."). EMPTY_STATE_QUILL_ART (app.js)
-   is set as this img's src once at boot, not re-set on every render. */
-.note-editor-empty-state {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: .25rem;
-  padding: 2rem;
-}
-
-.empty-state-art {
-  width: 360px;
-  height: auto;
-  /* The source artwork has ~50px of transparent canvas below the
-     visible quill/inkwell at this display width (scattered sparkle
-     dots widen its natural bounding box) — that dead space reads as
-     an oversized gap before the heading. Pulling up via a negative
-     margin closes it without re-cropping/re-encoding the asset
-     (cropping tightly was tried and rejected: it more than
-     quadrupled the embedded file size for fine-line art like this,
-     with no real visual benefit over just compensating in CSS).
-     -34px leaves a small intentional breathing gap rather than
-     butting the heading directly against the inkwell's base. */
-  margin-bottom: -34px;
-  opacity: .92; /* the artwork's own highlight tones already sit close to --paper (see asset notes) — a touch of opacity softens the remaining edge further rather than it reading as a pasted-on sticker */
-}
-
-.empty-state-heading {
-  font-family: var(--font-display);
-  font-size: 1.85rem;
-  font-weight: 400;
-  color: var(--ink-soft);
-  margin: 0;
-}
-
-.empty-state-divider {
-  display: flex;
-  align-items: center;
-  gap: .6rem;
-  width: 7rem;
-  margin: .85rem 0;
-  color: var(--brass);
-}
-.empty-state-divider::before,
-.empty-state-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-.empty-state-divider span {
-  font-size: .8rem;
-  opacity: .85;
-}
-
-.empty-state-subtext {
-  font-size: .98rem;
-  line-height: 1.6;
-  color: var(--muted);
-  margin: 0;
-  max-width: 32rem;
-}
-
-/* Illuminate mode's persistent visual indicator — a deliberately
-   noticeable border using the same --red already reserved elsewhere for
-   "pay attention, this is consequential" (the no-recovery warning text).
-   This needs to be unmissable at a glance, since for as long as it's
-   showing, the screen is exactly as exposed as an unencrypted Remnant
-   would be — the entire point of spotlight masking is suspended. */
-.note-editor.illuminated {
-  border-color: var(--red);
-}
-
-.note-title-row {
-  display: flex;
-  align-items: center;
-  gap: .6rem;
-  margin-bottom: .2rem;
-}
-
-/* Gradient rule flourish beneath the title — starts solid from the left
-   (anchored under the title text) and fades out to the right. */
-.note-title-flourish {
-  height: 1px;
-  margin: 0 0 1rem 0;
-  background: linear-gradient(
-    to right,
-    var(--gold-vivid) 0%,
-    var(--gold-vivid) 40%,
-    transparent 100%
-  );
-  opacity: .35;
-  border: none;
-}
-
-.note-title-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-family: var(--font-display);
-  font-size: 1.6rem;
-  font-weight: 600;
-  padding: 0 0 .6rem 0;
-  outline: none;
-  color: var(--ink);
-  resize: none;
-  overflow: hidden; /* no scrollbar — height is kept in sync with content via JS (see autoGrowTitle in app.js) */
-  white-space: pre-wrap; /* wrap like the body, instead of an <input>'s single-line clip/scroll */
-  word-break: break-word; /* long unbroken titles (URLs, etc.) wrap rather than overflowing the column on narrow/mobile widths */
-  line-height: 1.25;
-}
-.note-title-input::placeholder { color: var(--border); }
-
-.cipher-illuminate-btn, .cipher-obscure-btn {
-  flex-shrink: 0;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: .35rem;
-}
-.cipher-illuminate-btn::before {
-  content: '';
-  display: inline-block;
-  width: 1rem;
-  height: 1rem;
-  background-image: url("data:image/png;base64,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");
-  background-repeat: no-repeat;
-  background-size: contain;
-  background-position: center;
-}
-.cipher-obscure-btn { background: var(--red); border-color: var(--red); }
-.cipher-obscure-btn:hover { background: var(--oxide-hover); }
-
-.cipher-illuminate-banner {
-  background: var(--red);
-  color: var(--paper);
-  font-size: .78rem;
-  font-weight: 600;
-  padding: .5rem .75rem;
-  border-radius: var(--r-sm);
-  margin-bottom: .75rem;
-}
-
-.note-body-wrap {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden; /* EasyMDE's own CodeMirror scroller handles internal scrolling — this wrapper must never grow taller than its flex box, or it could push .note-editor/.notes-column taller than the viewport, trapping scroll in a fixed-height ancestor further up the chain */
-  display: flex;
-  flex-direction: column;
-}
-
-/* ── Remnant/Fragment read/edit mode — Inscribe button ───────────────
-   Shown in the title row for plain Remnants and Fragments (same slot
-   as Illuminate for Ciphers). Quill icon + "Inscribe" label. Active
-   (edit mode) uses btn-primary styling. */
-.remnant-inscribe-btn {
-  flex-shrink: 0;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: .35rem;
-  padding-left: .45rem;
-}
-.remnant-inscribe-btn::before {
-  content: '';
-  display: inline-block;
-  width: 1rem;
-  height: 1rem;
-  background-image: url("data:image/png;base64,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");
-  background-repeat: no-repeat;
-  background-size: contain;
-  background-position: center;
-  opacity: .8;
-}
-.remnant-inscribe-btn.edit-active {
-  background: transparent;
-  border-color: transparent;
-  color: var(--muted);
-  opacity: .55;
-  transition: opacity .15s, color .15s;
-}
-.remnant-inscribe-btn.edit-active:hover {
-  opacity: 1;
-  color: var(--ink);
-}
-.remnant-inscribe-btn.edit-active::before { filter: grayscale(1) brightness(.7); }
-
-/* Hide the EasyMDE toolbar in read mode */
-.EasyMDEContainer.body-read-mode .editor-toolbar {
-  display: none;
-}
-
-/* ── EasyMDE preview panel — Remnant read mode ────────────────────────
-   When a Remnant/Fragment is in read mode, EasyMDE's .editor-preview
-   div is shown instead of the CodeMirror editor. Override its default
-   styles (white background, default font) to match Remnant's aesthetic. */
-.EasyMDEContainer .editor-preview {
-  background: var(--paper);
-  border: none;
-  font-family: var(--font-body);
-  font-size: .98rem;
-  line-height: 1.7;
-  color: var(--ink);
-  padding: 0;
-  /* Make it scrollable within the same flex container as the editor */
-  position: absolute;
-  inset: 0;
-  overflow-y: auto;
-}
-.EasyMDEContainer .editor-preview h1,
-.EasyMDEContainer .editor-preview h2,
-.EasyMDEContainer .editor-preview h3,
-.EasyMDEContainer .editor-preview h4,
-.EasyMDEContainer .editor-preview h5,
-.EasyMDEContainer .editor-preview h6 {
-  font-family: var(--font-display);
-  color: var(--brass-dark);
-  font-weight: 600;
-  margin: 1.2em 0 .4em;
-}
-.EasyMDEContainer .editor-preview p { margin: 0 0 .8em; }
-.EasyMDEContainer .editor-preview strong { color: var(--ink); font-weight: 700; }
-.EasyMDEContainer .editor-preview em { font-style: italic; }
-.EasyMDEContainer .editor-preview a { color: var(--brass-dark); }
-.EasyMDEContainer .editor-preview blockquote {
-  color: var(--muted);
-  border-left: 3px solid var(--border);
-  margin: .8em 0;
-  padding-left: .9em;
-  font-style: italic;
-}
-.EasyMDEContainer .editor-preview code,
-.EasyMDEContainer .editor-preview pre {
-  background: var(--paper-dark);
-  border-radius: var(--r-sm);
-  font-family: var(--font-mono, monospace);
-  font-size: .9em;
-}
-.EasyMDEContainer .editor-preview code { padding: .1em .35em; }
-.EasyMDEContainer .editor-preview pre { padding: .7em 1em; overflow-x: auto; }
-.EasyMDEContainer .editor-preview ul,
-.EasyMDEContainer .editor-preview ol { padding-left: 1.4em; margin: 0 0 .8em; }
-.EasyMDEContainer .editor-preview hr {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin: 1.2em 0;
-}
-
-/* The original <textarea id="note-body-input"> is what EasyMDE
-   progressively enhances on boot (see app.js initBodyEditor) — by the
-   time the app is interactive, EasyMDE has already hidden this element
-   and inserted its own wrapper (.EasyMDEContainer, containing the
-   toolbar + CodeMirror instance) as a sibling. This selector therefore
-   only matters before EasyMDE finishes initializing, or as a fallback. */
-.note-body-input { display: none; }
-
-/* ── EasyMDE integration ──────────────────────────────────────────────
-   EasyMDE/CodeMirror ship with their own visual design (light theme,
-   Font-Awesome toolbar icons, fixed-position fullscreen/preview panes)
-   tuned for a typical page-flow layout — none of that matches
-   Remnant's paper/brass aesthetic or its flexbox-constrained app shell,
-   so this section restyles the parts that are visible in Remnant's
-   actual configured toolbar (see initBodyEditor's toolbar option —
-   image/upload/preview/side-by-side/fullscreen/guide are excluded
-   entirely and intentionally left unstyled here). */
-
-.EasyMDEContainer {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.EasyMDEContainer .CodeMirror {
-  flex: 1;
-  min-height: 0;
-  height: 100%; /* fills the flex-allocated space exactly — CodeMirror's internal .CodeMirror-scroll only scrolls when THIS element has a real bounded height; height:auto (the previous value here) told it to just grow to fit all content instead, which is why mouse-wheel scrolling did nothing — there was nothing to scroll, the whole editor just kept expanding */
-  border: none;
-  background: transparent;
-  color: var(--ink);
-  font-family: var(--font-body);
-  font-size: .98rem;
-  line-height: 1.7;
-  padding: 0;
-}
-.EasyMDEContainer .CodeMirror-scroll {
-  min-height: 0;
-  height: 100%; /* this is CodeMirror's actual scrolling element — needs the same real-height treatment as its parent, not just min-height:0, or it inherits the same "grow forever" behavior */
-}
-.EasyMDEContainer .CodeMirror-placeholder { color: var(--muted) !important; opacity: .6; }
-.EasyMDEContainer .CodeMirror-cursor { border-left-color: var(--ink); }
-.EasyMDEContainer .CodeMirror-selected { background: var(--paper-dark); }
-
-/* Markdown syntax highlighting — CodeMirror's gfm mode colors/weights
-   the raw text as you type (headers bold+larger, **bold** bold,
-   blockquote/link colored, etc.) without hiding the syntax markers
-   themselves; see the Markdown Support spec discussion for why this
-   (CodeMirror's native behavior) was accepted instead of the earlier
-   hide-syntax-until-active approach. Recolored to Remnant's palette
-   rather than CodeMirror's defaults (blue headers, etc.). */
-.cm-s-easymde .cm-header { color: var(--brass-dark); font-weight: 600; }
-.cm-s-easymde .cm-strong { color: var(--ink); font-weight: 700; }
-.cm-s-easymde .cm-em { color: var(--ink); font-style: italic; }
-.cm-s-easymde .cm-quote { color: var(--muted); font-style: italic; }
-.cm-s-easymde .cm-link { color: var(--brass-dark); }
-.cm-s-easymde .cm-url { color: var(--muted); }
-.cm-s-easymde .cm-comment { background: var(--paper-dark); border-radius: var(--r-sm); } /* fenced code blocks render via the 'comment' token in gfm mode */
-
-.editor-toolbar {
-  opacity: 1;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  padding: .4rem .2rem;
-  margin-bottom: .5rem;
-  flex-shrink: 0;
-}
-/* NOT applied while disabled-for-preview is set — without this guard,
-   hovering the toolbar (exactly where the cursor tends to land right
-   after seeing an empty editor) forced opacity back to 1 regardless of
-   the disabled state, defeating the whole "look inert" effect from
-   setBodyDisabled(). This was a real, confirmed bug, not theoretical. */
-.editor-toolbar:hover:not(.disabled-for-preview) { opacity: 1; }
-.editor-toolbar button {
-  color: var(--muted) !important;
-  border-radius: var(--r-sm);
-}
-.editor-toolbar button:hover, .editor-toolbar button.active {
-  background: var(--paper-dark);
-  border-color: var(--border);
-  color: var(--brass-dark) !important;
-}
-.editor-toolbar i.separator { border-left-color: var(--border); }
-
-/* ── Cipher obscured viewer (read-only, per-line decrypt-on-demand) ──
-   Shown instead of the textarea whenever a Cipher is unlocked but NOT
-   illuminated. Built as one real <div> row per ENCRYPTED line — row
-   count and scroll height are known immediately from the encrypted
-   array's length, no decryption needed just to lay out the viewer.
-   Each row decrypts ONLY while the cursor is over it (see app.js
-   renderCipherObscuredViewer / syncObscuredViewerToPointer) and is
-   discarded the instant the cursor moves to a different row — this is
-   genuine per-line decrypt-on-demand, not a visual effect layered on
-   an already-fully-decrypted string (compare: the textarea above,
-   used only while illuminated, DOES hold full plaintext, by design,
-   for that one explicit higher-exposure mode).
-   Plain native scroll — no second element trying to mirror anything,
-   so there's no wrap-mismatch risk at all: each row's content (sand
-   texture, or real decrypted text) is sized by itself, independently,
-   the way any normal block of text would be. */
-.cipher-obscured-viewer {
-  position: absolute;
-  inset: 0;
-  overflow-y: auto;
-  font-family: var(--font-body);
-  font-size: .98rem;
-  line-height: 1.7;
-  color: var(--ink);
-  touch-action: pan-y;
-  padding-bottom: 1.5em;
-  cursor: none;
-}
-
-/* Keyboard navigation mode indicator */
-.cipher-obscured-viewer.keyboard-mode {
-  box-shadow: inset 3px 0 0 var(--brass);
-  cursor: default;
-}
-
-.cipher-obscured-row {
-  position: relative;
-}
-
-.cipher-obscured-row-real {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  display: block;
-  width: 100%;
-  min-height: 1.7em;
-}
-
-/* When a row is active (decrypted), make its text available. */
-.cipher-obscured-row.active .cipher-obscured-row-real {
-  display: block;
-  opacity: 1;
-  transition: opacity 0.6s ease-out;
-}
-
-/* ── Keyboard mode opacity states ───────────────────────────────────
-   Three bands: center (100%), adjacent gold (50%), leaving (0%).
-   All transition at the same speed so the cross-fade feels smooth. */
-.cipher-obscured-row.kb-center .cipher-obscured-row-real,
-.cipher-obscured-row.kb-center .cipher-obscured-row-gold {
-  display: block;
-  opacity: 1;
-  transition: opacity 0.3s ease-in-out;
-}
-
-.cipher-obscured-row.kb-adjacent .cipher-obscured-row-real,
-.cipher-obscured-row.kb-adjacent .cipher-obscured-row-gold {
-  display: block;
-  opacity: 0.5;
-  transition: opacity 0.3s ease-in-out;
-}
-
-.cipher-obscured-row.kb-leaving .cipher-obscured-row-real,
-.cipher-obscured-row.kb-leaving .cipher-obscured-row-gold {
-  display: block;
-  opacity: 0;
-  transition: opacity 0.3s ease-in-out;
-}
-
-/* Fading out — text dissolves back into mist */
-.cipher-obscured-row.fading .cipher-obscured-row-real {
-  display: block;
-  opacity: 0;
-  transition: opacity 0.6s ease-out;
-}
-
-.cipher-obscured-row.fading .cipher-obscured-row-gold {
-  opacity: 0;
-  transition: opacity 0.6s ease-out;
-}
-
-/* The mist canvas overlay — sits on top of the entire viewer,
-   handling all masking. pointer-events:none so scroll/mouse events
-   still reach the viewer underneath. */
-.cipher-mist-canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* Touch capture layer — transparent, covers the viewer exactly,
-   touch-action:none so the browser never attempts native scroll.
-   Only present on touch devices; on desktop pointer-events:none
-   so mouse events fall through to the viewer normally. */
-.cipher-touch-layer {
-  position: absolute;
-  top: -80px;
-  bottom: -80px;
-  left: 0;
-  right: 0;
-  z-index: 11;
-  pointer-events: none;
-  touch-action: none;
-}
-@media (hover: none) and (pointer: coarse) {
-  .cipher-touch-layer {
-    pointer-events: auto;
-  }
-}
-
-/* ── Scratchpad ──────────────────────────────────────────────────── */
-
-.scratchpad-header {
-  padding: .65rem 1rem;
-  font-family: var(--font-display);
-  font-weight: 600;
-  border-bottom: 1px solid var(--border);
-  color: var(--brass-dark);
-}
-
-.scratchpad-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  resize: none;
-  outline: none;
-  padding: 1rem;
-  font-size: .92rem;
-  line-height: 1.65;
-  color: var(--ink);
-  touch-action: pan-y;
-}
-.scratchpad-input::placeholder { color: var(--muted); opacity: .6; }
-
-/* Custom scratchpad context menu — only shown on right-click WITH an
-   active text selection (see app.js); positioned absolutely at the
-   cursor. */
-.scratchpad-context-menu {
-  position: fixed;
-  z-index: 50;
-  background: var(--paper);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  box-shadow: 0 4px 14px rgba(0,0,0,.18);
-  min-width: 160px;
-  padding: .3rem;
-}
-.scratchpad-context-menu-item {
-  padding: .45rem .7rem;
-  font-size: .85rem;
-  border-radius: var(--r-sm);
-  cursor: pointer;
-}
-.scratchpad-context-menu-item:hover { background: var(--paper-dark); color: var(--brass-dark); }
-
-/* "+" tab-bar kind-picker menu — same visual language as the scratchpad
-   context menu, anchored under the "+" button (see openTabNewMenu). */
-.tab-new-menu {
-  position: fixed;
-  z-index: 50;
-  background: var(--paper);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  box-shadow: 0 4px 14px rgba(0,0,0,.18);
-  min-width: 150px;
-  padding: .3rem;
-}
-.tab-new-menu-item {
-  padding: .45rem .7rem;
-  font-size: .85rem;
-  border-radius: var(--r-sm);
-  cursor: pointer;
-}
-.tab-new-menu-item:hover { background: var(--paper-dark); color: var(--brass-dark); }
-
-
-/* ── Toast ───────────────────────────────────────────────────────── */
-
-.toast {
-  position: fixed;
-  bottom: 1.5rem;
-  left: 50%;
-  transform: translateX(-50%) translateY(20px);
-  background: var(--ink);
-  color: var(--paper);
-  padding: .65rem 1.1rem;
-  border-radius: var(--r-md);
-  font-size: .85rem;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .2s, transform .2s;
-  z-index: 200;
-}
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-/* ── Modals ──────────────────────────────────────────────────────── */
-
-.modal-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(var(--shadow-ink),.45);
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-.modal-overlay.open { display: flex; }
-
-/* The export/import passphrase prompt can open while the settings modal
-   is already open (export/import both live inside settings). Without a
-   higher z-index it shares z=100 with the settings overlay, and DOM
-   paint order is the only thing determining which overlay is "on top" —
-   unreliable, and the click-outside handler fires on BOTH simultaneously.
-   z=110 ensures this modal always paints above the settings overlay and
-   its own backdrop fully captures clicks, so the settings modal can't
-   be accidentally dismissed when the user interacts with the passphrase
-   prompt. */
-#modal-exportimport-passphrase { z-index: 110; }
-
-.modal {
-  background: var(--paper);
-  border-radius: var(--r-md);
-  width: 100%;
-  max-width: 520px;
-  max-height: 86vh;
-  overflow-y: auto;
-  box-shadow: 0 12px 40px rgba(var(--shadow-ink),.25);
-}
-.modal-sm { max-width: 460px; }
-.modal-confirm-dialog { max-width: 360px; }
-
-/* ── Confirm dialog internals ─────────────────────────────────────── */
-.confirm-message-text {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.55;
-  color: var(--ink);
-}
-.confirm-divider {
-  display: flex;
-  align-items: center;
-  gap: .6rem;
-  margin: 1rem 0 .9rem;
-  color: var(--brass);
-}
-.confirm-divider::before,
-.confirm-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-.confirm-divider span { font-size: .8rem; opacity: .85; }
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: .5rem;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.1rem 1.4rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.modal-title {
-  font-family: var(--font-display);
-  font-size: 1.15rem;
-  font-weight: 600;
-  margin: 0;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 1.4rem;
-  color: var(--muted);
-  cursor: pointer;
-  line-height: 1;
-}
-.modal-close:hover { color: var(--ink); }
-
-.modal-body { padding: 1.4rem; }
-
-/* ── Fragment merge picker ───────────────────────────────────────── */
-
-.fragment-merge-list {
-  display: flex;
-  flex-direction: column;
-  gap: .35rem;
-  max-height: 280px;
-  overflow-y: auto;
-  margin-bottom: 1rem;
-}
-.fragment-merge-row {
-  padding: .6rem .8rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  font-size: .88rem;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.fragment-merge-row:hover { background: var(--paper-dark); border-color: var(--brass); }
-
-/* ── Dust modal ──────────────────────────────────────────────────── */
-
-.dust-list {
-  display: flex;
-  flex-direction: column;
-  gap: .7rem;
-}
-.dust-row {
-  padding: .75rem .9rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  background: var(--paper-dark);
-}
-.dust-row-snippet {
-  font-size: .9rem;
-  margin-bottom: .35rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.dust-row-meta {
-  font-size: .78rem;
-  color: var(--muted);
-  margin-bottom: .55rem;
-}
-.dust-row-salvage-btn { width: 100%; }
-
-.dust-deletion-log-link {
-  margin-top: 1.1rem;
-  padding-top: .9rem;
-  border-top: 1px solid var(--border);
-  text-align: center;
-  font-size: .82rem;
-  color: var(--muted);
-  cursor: pointer;
-}
-.dust-deletion-log-link:hover { color: var(--brass-dark); }
-
-/* ── Deletion log modal ──────────────────────────────────────────── */
-
-.deletion-log-list {
-  display: flex;
-  flex-direction: column;
-  gap: .5rem;
-}
-.deletion-log-row {
-  padding: .6rem .8rem;
-  border-bottom: 1px solid var(--border);
-}
-.deletion-log-snippet {
-  font-size: .88rem;
-  margin-bottom: .2rem;
-}
-.deletion-log-meta {
-  font-size: .76rem;
-  color: var(--muted);
-}
-
-/* ── Terminology modal ───────────────────────────────────────────── */
-
-.term-entry { margin-bottom: 1rem; }
-.term-name {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1.05rem;
-  color: var(--brass-dark);
-  margin-bottom: .2rem;
-}
-.term-def {
-  font-size: .85rem;
-  line-height: 1.55;
-  color: var(--ink);
-  margin: 0;
-}
-
-.term-hierarchy {
-  margin-top: 1.2rem;
-  padding: .75rem .9rem;
-  background: var(--paper-dark);
-  border-radius: var(--r-md);
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: .92rem;
-  color: var(--brass-dark);
-  text-align: center;
-}
-.term-hierarchy-arrow {
-  color: var(--muted);
-  font-weight: 400;
-  margin: 0 .3rem;
-}
-
-/* ── Forms ───────────────────────────────────────────────────────── */
-
-.form-group { margin-bottom: 1rem; }
-.form-label {
-  display: block;
-  font-size: .8rem;
-  font-weight: 600;
-  margin-bottom: .35rem;
-  color: var(--muted);
-}
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  font: inherit; font-weight: 600; font-size: .9rem; cursor: pointer;
+  padding: .6rem 1.1rem; border-radius: var(--r-sm); border: 1px solid transparent;
+  transition: background .12s, border-color .12s, opacity .12s;
+}
+.btn:disabled { opacity: .5; cursor: default; }
+.btn-sm { padding: .42rem .8rem; font-size: .82rem; }
+.btn-primary { background: var(--current); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--deep); }
+.btn-outline { background: var(--surface); border-color: var(--line); color: var(--deep); }
+.btn-outline:hover { border-color: var(--current); }
+.btn-ghost { background: transparent; color: var(--muted); }
+.btn-ghost:hover { background: var(--paper-2); color: var(--deep); }
+.btn-danger-ghost { background: transparent; color: var(--danger); border-color: transparent; }
+.btn-danger-ghost:hover { background: var(--tint-danger); }
+.w100 { width: 100%; }
+
+/* ── Forms ───────────────────────────────────────────────────── */
+.form-group { margin-bottom: .9rem; flex: 1; min-width: 0; }
+.form-row { display: flex; gap: .75rem; flex-wrap: wrap; }
+.form-label { display: block; font-size: .8rem; font-weight: 500; color: var(--deep); margin-bottom: .3rem; }
+.form-label .muted { font-weight: 400; }
 .form-hint { font-size: .76rem; color: var(--muted); margin-top: .3rem; }
-
+.form-msg { min-height: 1.2rem; font-size: .82rem; color: var(--danger); margin-bottom: .3rem; }
 .input {
-  width: 100%;
-  padding: .55rem .7rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  background: var(--paper);
-  color: var(--ink);
-  outline: none;
+  width: 100%; padding: .55rem .7rem; font: inherit; font-size: .9rem; color: var(--deep);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm);
 }
-.input:focus { border-color: var(--brass); }
-.input-mono { font-family: var(--font-mono); font-size: .82rem; }
-
-.token-display {
-  font-family: var(--font-mono);
-  font-size: .72rem;
-  background: var(--paper-dark);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: .25rem .5rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  min-width: 0;
-  cursor: pointer;
-  user-select: all;
-}
-
+.input:focus { outline: none; border-color: var(--current); box-shadow: 0 0 0 3px var(--focus-ring); }
+textarea.input { resize: vertical; line-height: 1.5; }
+.input-mono { font-family: var(--font-mono); }
+select.input { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 16px) 52%, calc(100% - 11px) 52%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 1.8rem; }
+.form-check { display: flex; align-items: center; gap: .5rem; font-size: .9rem; color: var(--deep); cursor: pointer; }
+.form-check input { width: 16px; height: 16px; accent-color: var(--current); }
 .form-actions { display: flex; gap: .6rem; margin-top: 1.1rem; }
 
-.auth-divider {
-  display: flex;
-  align-items: center;
-  text-align: center;
-  color: var(--muted);
-  font-size: .78rem;
+/* ── Modals ──────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: var(--scrim); backdrop-filter: blur(2px);
+  display: none; align-items: flex-start; justify-content: center;
+  padding: clamp(1rem, 6vh, 4rem) 1rem;
+  overflow-y: auto;
 }
-.auth-divider::before, .auth-divider::after {
-  content: '';
-  flex: 1;
-  border-bottom: 1px solid var(--border);
+.modal-overlay.open { display: flex; }
+.modal {
+  width: 100%; max-width: 540px;
+  background: var(--surface); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg); border: 1px solid var(--line);
+  animation: modal-rise .18s ease;
 }
-.auth-divider span { padding: 0 .6rem; }
+.modal-sm { max-width: 400px; }
+@keyframes modal-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 1.1rem 1.3rem .4rem; }
+.modal-title { font-size: 1.2rem; }
+.modal-close { font-size: .9rem; }
+.modal-body { padding: .6rem 1.3rem 1.3rem; }
+.modal-actions { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-top: 1.1rem; }
+.modal-actions-right { display: flex; gap: .5rem; }
 
-/* ── Settings sections ───────────────────────────────────────────── */
-
-/* Settings tab bar — separate from the note editor's .tab-bar/.tab
-   (different class names entirely, on purpose: that one is a scrollable
-   row of open documents, this is a small fixed set of two-to-a-few
-   panels within one modal, and conflating the two would make future
-   tab-bar changes risk bleeding into this one). Extensible: adding a
-   future "Themes" tab is just one more .settings-tab + panel pair. */
-.settings-tab-bar {
-  display: flex;
-  gap: .3rem;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 1.2rem;
-}
-.settings-tab {
-  padding: .55rem .9rem;
-  font-size: .85rem;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px; /* sits flush on top of settings-tab-bar's own border-bottom */
-}
-.settings-tab:hover { color: var(--brass-dark); }
-.settings-tab.active {
-  color: var(--brass-dark);
-  border-bottom-color: var(--brass);
-}
-
-.settings-tab-panel { display: none; }
-.settings-tab-panel.active { display: block; }
-
-.settings-section { margin-bottom: 1.3rem; }
-.settings-section-header {
-  font-size: .85rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  color: var(--muted);
-  margin-bottom: .6rem;
-}
-.settings-section-body { }
-
-.settings-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: .4rem 0;
-}
-.settings-row-label { font-size: .88rem; font-weight: 500; }
+/* ── Settings ────────────────────────────────────────────────── */
+.settings-section { margin-bottom: 1.4rem; }
+.settings-section-header { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .7rem; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .45rem 0; }
+.settings-row-label { font-size: .9rem; font-weight: 500; color: var(--deep); }
 .settings-row-sub { font-size: .78rem; color: var(--muted); }
 
-/* ── Auth badges (queried/styled by auth.js's renderSettingsSection) ── */
+/* ── Auth-specific (queried by auth.js) ──────────────────────── */
+.auth-divider { display: flex; align-items: center; text-align: center; color: var(--muted); font-size: .78rem; margin: .1rem 0; }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; border-bottom: 1px solid var(--line); }
+.auth-divider span { padding: 0 .6rem; }
+.auth-badge { display: inline-block; padding: .15rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: 600; vertical-align: middle; }
+.auth-badge-guest  { background: var(--paper-2); color: var(--muted); }
+.auth-badge-token  { background: var(--tint-teal); color: var(--current); }
+.auth-badge-google { background: var(--reclaimed-pale); color: var(--reclaimed); }
+.auth-google-info { display: flex; align-items: center; gap: .6rem; }
+.auth-google-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex: none; }
+.token-display { font-family: var(--font-mono); font-size: .72rem; background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: .25rem .5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; cursor: pointer; user-select: all; }
 
-.auth-badge {
-  display: inline-block;
-  padding: .15rem .55rem;
-  border-radius: 999px;
-  font-size: .72rem;
-  font-weight: 600;
-  vertical-align: middle;
+/* ── Toasts ──────────────────────────────────────────────────── */
+.toast-container { position: fixed; bottom: 1.2rem; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: .5rem; align-items: center; pointer-events: none; }
+.toast {
+  background: var(--solid); color: var(--on-solid); padding: .6rem 1rem; border-radius: var(--r-sm);
+  font-size: .88rem; box-shadow: var(--shadow-lg);
+  animation: toast-in .2s ease, toast-out .3s ease forwards 3.2s;
 }
-.auth-badge-guest  { background: var(--paper-dark); color: var(--muted); }
-.auth-badge-token  { background: var(--badge-token-bg); color: var(--brass-dark); }
-.auth-badge-google { background: var(--blue-pale); color: var(--blue-text); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(8px); } }
 
-.auth-google-info {
-  display: flex;
-  align-items: center;
-  gap: .6rem;
+/* ── Reminders ───────────────────────────────────────────────── */
+.icon-btn-badge { position: relative; }
+.badge {
+  position: absolute; top: 1px; right: 1px;
+  min-width: 15px; height: 15px; padding: 0 3px;
+  border-radius: 999px; background: var(--ember); color: #fff;
+  font-family: var(--font-body); font-size: .6rem; font-weight: 700;
+  display: grid; place-items: center; line-height: 1;
 }
-/* ════════════════════════════════════════════════════════════════
-   RESPONSIVE — Galaxy Fold 5 breakpoints
-   Mirrors the scheme already established in the Refectory stylesheet
-   this auth/layout pattern is ported from:
-     860px = fold open / tablet
-     640px = mid-range phones
-     420px = fold closed (~370px outer-screen viewport)
-   The pinned-nav-panel responsive override (isPinnedActive() in app.js)
-   uses NAV_PIN_MIN_WIDTH = 860, kept in sync with the tier below.
-   ════════════════════════════════════════════════════════════════ */
-
-/* ── 860px: tablet / fold open ──────────────────────────────────── */
-@media (max-width: 860px) {
-  /* Nav panel — slightly narrower; less width to spare at this tier
-     even when pop-out, and pinned mode is already force-disabled at
-     this width by isPinnedActive() in app.js. */
-  .nav-panel { width: 260px; }
+.reminders-list { display: flex; flex-direction: column; gap: .55rem; }
+.reminder-row {
+  display: flex; align-items: flex-start; gap: .6rem;
+  padding: .7rem .8rem; background: var(--surface);
+  border: 1px solid var(--line); border-left-width: 3px; border-radius: var(--r-sm);
 }
+.reminder-row.sev-overdue, .reminder-row.sev-due { border-left-color: var(--ember); }
+.reminder-row.sev-soon { border-left-color: var(--current); }
+.reminder-row.sev-info { border-left-color: var(--flow-pale); }
+.reminder-body { flex: 1; min-width: 0; cursor: pointer; }
+.reminder-body:focus-visible { outline: 2px solid var(--current); outline-offset: 2px; border-radius: 3px; }
+.reminder-title { font-weight: 600; color: var(--abyss); font-size: .9rem; }
+.reminder-detail { font-size: .8rem; color: var(--muted); margin-top: .15rem; }
+.reminder-dismiss { flex: none; }
 
-/* ── 640px: mid phones ──────────────────────────────────────────── */
-@media (max-width: 640px) {
-  .main-layout { flex-direction: column; }
-  .notes-column { flex: 1; min-height: 0; }
-  .modal, .modal-sm { max-width: 100%; margin: 0 .75rem; }
+/* ── Motion ──────────────────────────────────────────────────── */
+/* Rows rise into place like silt settling; staggered by render order.
+   Applied only on meaningful renders (load, edit, filter) — never on
+   every search keystroke (app.js gates that). */
+@keyframes riv-rise {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+.riv-enter { animation: riv-rise var(--motion) var(--ease-out) both; }
 
-  /* Scratchpad becomes a pop-out drawer on mobile instead of an
-     always-visible inline column — splitting a narrow screen between
-     notes and scratchpad left too little room for either, and was
-     forcing Remnants/Ciphers to compress rather than show their full
-     content. Hidden by default; toggled via .open, same pattern as the
-     nav panel.
-     position: absolute (not fixed) anchored against .main-layout —
-     same approach as .nav-panel above. .main-layout already spans
-     exactly the real remaining space below the topbar (flex:1 in a
-     flex-column body, not a hardcoded height), so anchoring here needs
-     no guessed pixel offset at all, and can never drift out of sync
-     with the topbar's actual rendered height the way a hardcoded
-     top: 57px could. */
-  .scratchpad-column {
-    position: absolute;
-    top: 0; right: 0; bottom: 0;
-    width: 85vw;
-    max-width: 360px;
-    height: auto;
-    border-top: none;
-    border-left: 1px solid var(--border);
-    box-shadow: -6px 0 24px rgba(var(--shadow-ink),.12);
-    transform: translateX(100%);
-    transition: transform .2s ease;
-    z-index: 45;
-  }
-  .scratchpad-column.open { transform: translateX(0); }
-
-  .scratchpad-scrim {
-    display: none;
-    position: absolute;
-    inset: 0;
-    background: rgba(var(--shadow-ink),.42);
-    z-index: 44;
-  }
-  .scratchpad-column.open ~ .scratchpad-scrim { display: block; }
-
-  .scratchpad-toggle-btn { display: inline-flex; }
+/* Bars sweep in from nothing, left to right, on every hero render. */
+@keyframes riv-fill {
+  from { width: 0; min-width: 0; }
 }
 
-/* Hidden above the mobile breakpoint — desktop keeps the always-visible
-   inline column, no toggle needed. The 640px media query above sets it
-   back to inline-flex; this base rule applies everywhere ABOVE that
-   breakpoint width only by virtue of being overridden there. */
-@media (min-width: 641px) {
-  .scratchpad-toggle-btn { display: none; }
+/* Content swapped into an open modal (wizard screen → screen) fades in. */
+@keyframes riv-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
 }
-.scratchpad-close-btn { display: none; }
-@media (max-width: 640px) {
-  .scratchpad-close-btn {
-    display: inline-flex;
-    margin-left: auto;
-    background: none;
-    border: none;
-    font-size: 1.3rem;
-    line-height: 1;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .scratchpad-header { display: flex; align-items: center; }
+.anim-swap { animation: riv-fade var(--motion-fast) var(--ease-out) both; }
+
+/* Smooth the stream-row hover wash. */
+.stream-row { transition: background var(--motion-fast) ease; }
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .topbar-search { display: none; }
+  .stream-bar-row { grid-template-columns: 90px 1fr auto; }
+  .form-row { flex-direction: column; gap: 0; }
+  .form-group[style*="max-width"] { max-width: none !important; }
 }
 
-/* ── 420px: fold closed / very narrow ────────────────────────────── */
-@media (max-width: 420px) {
-  .nav-panel { width: 88vw; } /* near-full-width on the Fold 5 outer screen */
-  .nav-panel-title { font-size: .92rem; }
-}
-
-@media (max-width: 640px) {
-  /* Title takes its own full-width line; action buttons wrap below it */
-  .note-title-row {
-    flex-wrap: wrap;
-  }
-  .note-title-input {
-    flex: 0 0 100%;
-    width: 100%;
-  }
-  /* When title is hidden (Fragments), collapse its space so buttons
-     sit at the top of the row rather than below an invisible gap */
-  .note-title-input[style*="visibility: hidden"] {
-    flex-basis: 0;
-    width: 0;
-    min-width: 0;
-    padding: 0;
-    margin: 0;
-  }
-  /* Buttons on the second line — left-aligned, compact */
-  .cipher-illuminate-btn,
-  .cipher-obscure-btn,
-  .remnant-inscribe-btn,
-  .fragment-merge-btn,
-  .fragment-promote-btn {
-    margin-bottom: .35rem;
-  }
-}
-
-/* Tab label truncation on mobile — with .tab-bar's horizontal scroll
-   (see .tab-bar, overflow-x: auto), one long title can push several
-   other tabs off-screen, which is much more awkward to recover from by
-   touch-scrolling than by mouse. Capped at roughly 30 characters' worth
-   of width (~220px in the system sans stack at this size) with an
-   ellipsis — applies uniformly to Remnant, Cipher, and Fragment tabs
-   alike, since they all share the same .tab-label markup. Desktop is
-   unaffected; full titles still show there. */
-@media (max-width: 640px) {
-  .tab-label {
-    display: inline-block;
-    max-width: 220px;
-    min-width: 0; /* .tab-label is a flex item inside .tab (display:flex) — without this, its default content-based min-width silently overrides max-width/ellipsis, a classic flexbox gotcha */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: bottom;
-  }
-}
-
-/* ── EasyMDE / CodeMirror dark mode overrides ─────────────────────────
-   EasyMDE's vendored CSS uses hardcoded colours. These rules target the
-   specific elements that don't pick up our CSS variable tokens. */
-html.dark .CodeMirror {
-  background: var(--paper);
-  color: var(--ink);
-  border-color: var(--border);
-}
-html.dark .CodeMirror-cursor { border-left-color: var(--ink); }
-html.dark .CodeMirror-selected { background: #38352F; }
-html.dark .CodeMirror-line ::selection { background: #38352F; }
-html.dark .editor-toolbar {
-  background: var(--paper-dark);
-  border-color: var(--border);
-}
-html.dark .editor-toolbar a {
-  color: var(--muted) !important;
-}
-html.dark .editor-toolbar a:hover,
-html.dark .editor-toolbar a.active {
-  background: var(--border);
-  color: var(--ink) !important;
-}
-html.dark .editor-toolbar i.separator { border-color: var(--border); }
-html.dark .EasyMDEContainer .editor-preview {
-  background: var(--paper);
-  color: var(--ink);
-}
-html.dark .CodeMirror-scroll { background: var(--paper); }
-
-/* ── Dark mode icon recolouring ───────────────────────────────────────
-   Nav, pin, inscribe, and illuminate icons are embedded PNG artwork
-   with warm brass/gold tones. Desaturate + brighten to silver-grey. */
-html.dark .nav-row-icon,
-html.dark .nav-pin-icon {
-  filter: grayscale(1) brightness(1.8) contrast(0.85);
-}
-html.dark .remnant-inscribe-btn::before,
-html.dark .cipher-illuminate-btn::before {
-  filter: grayscale(1) brightness(1.8) contrast(0.85) opacity(0.8);
-}
-html.dark .remnant-inscribe-btn.edit-active::before {
-  filter: grayscale(1) brightness(1.4) contrast(0.7) opacity(0.6);
-}
-html.dark .nav-icon-library {
-  filter: grayscale(1) brightness(1.8) contrast(0.85);
-}
-
-/* ── Mobile topbar — collapse wordmark and text labels ───────────────────── */
-@media (max-width: 640px) {
-  .topbar { padding: .6rem .75rem; }
-
-  /* Hide "Remnant v0.6" wordmark — show just hamburger + icon */
-  .brand-wordmark { display: none; }
-
-  /* Collapse Terminology, Settings, Scratchpad to icon-only */
-  #terminology-link-btn {
-    font-size: 0;
-    padding: .3rem .4rem;
-    text-decoration: none;
-  }
-  #terminology-link-btn .mdi {
-    font-size: 1.1rem;
-    color: var(--brass);
-  }
-  #terminology-link-btn:hover .mdi { color: var(--brass-dark); }
-
-  #open-settings-btn {
-    font-size: 0;
-    padding: .3rem .4rem;
-  }
-  #open-settings-btn .mdi {
-    font-size: 1.05rem;
-    color: var(--muted);
-  }
-  #open-settings-btn:hover .mdi { color: var(--ink); }
-
-  #scratchpad-toggle-btn {
-    font-size: 0;
-    padding: .3rem .4rem;
-  }
-  #scratchpad-toggle-btn .mdi {
-    font-size: 1rem;
-    color: var(--muted);
-  }
-  #scratchpad-toggle-btn:hover .mdi { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) {
+  .modal, .toast { animation: none; }
+  .riv-enter, .anim-swap, .stream-bar-fill { animation: none; }
+  .chip, .stream-row { transition: none; }
+  .flow-amount { transition: none; }
 }
