@@ -267,21 +267,76 @@ function reconcileById(serverObj, deviceObj) {
   return merged;
 }
 
+// ── Tombstones (Layer 2): make deletes propagate across devices ──────
+// A delete records { [id]: deletedAt } in App.data.tombstones, which rides
+// along as ordinary synced metadata. Reconcile then drops any record whose id
+// carries a tombstone at least as new as the record's own updatedAt — so a
+// delete on one device removes the record everywhere, instead of the union
+// merge resurrecting it from a device that still holds a copy. A record edited
+// AFTER its tombstone wins (intentional un-delete). Tombstones are GC'd by age.
+// Scope: user-initiated deletes of Remnants/Ciphers, Scrolls, and Corpora.
+// Fragment decay/sweep is NOT tombstoned — a resurrected Fragment simply
+// re-decays, so it self-heals without the bookkeeping.
+const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+
+function recordTombstone(id) {
+  if (!id) return;
+  App.data.tombstones = App.data.tombstones || {};
+  App.data.tombstones[id] = Date.now();
+}
+
+// newest deletedAt per id wins
+function reconcileTombstones(serverTomb, deviceTomb) {
+  const merged = { ...(serverTomb || {}) };
+  for (const [id, ts] of Object.entries(deviceTomb || {})) {
+    if (!merged[id] || ts > merged[id]) merged[id] = ts;
+  }
+  return merged;
+}
+
+// Drop from a record collection any id whose tombstone is at least as new as
+// the record's updatedAt (i.e. deleted and not re-edited since). Returns a new
+// object; never mutates the input.
+function applyTombstones(recordsObj, tombstones) {
+  if (!tombstones) return { ...(recordsObj || {}) };
+  const out = {};
+  for (const [id, rec] of Object.entries(recordsObj || {})) {
+    const deletedAt = tombstones[id];
+    if (deletedAt && deletedAt >= (rec.updatedAt || 0)) continue; // buried, and not re-edited since — drop it
+    out[id] = rec;
+  }
+  return out;
+}
+
+// Bound the tombstone map: forget deletions older than the TTL.
+function gcTombstones(tombstones) {
+  const cutoff = Date.now() - TOMBSTONE_TTL_MS;
+  const out = {};
+  for (const [id, ts] of Object.entries(tombstones || {})) {
+    if (ts >= cutoff) out[id] = ts;
+  }
+  return out;
+}
+
 // mergeSyncPayloads(server, local) — reconcile a full payload for WRITING back
-// to the server during pull-before-push. Record collections merge per-id;
+// to the server during pull-before-push. Record collections merge per-id and
+// then have tombstones applied (so a delete this device knows about can't be
+// undone by the server's older copy); tombstone maps from both sides merge;
 // scratchpad takes whichever side is newer (ties to local); top-level account/
 // session metadata is taken from local, since that's this device's own state.
 function mergeSyncPayloads(server, local) {
   const s = server || {};
+  const tombstones = reconcileTombstones(s.tombstones, local.tombstones);
   const localPad  = local.scratchpad  || { content: '', updatedAt: 0 };
   const serverPad = s.scratchpad || { content: '', updatedAt: 0 };
   const mergedPad = (serverPad.updatedAt || 0) > (localPad.updatedAt || 0) ? serverPad : localPad;
   return {
     ...local, // local account/session metadata wins
-    notes: reconcileById(s.notes, local.notes),
+    tombstones,
+    notes: applyTombstones(reconcileById(s.notes, local.notes), tombstones),
     structure: {
-      books:    reconcileById(s.structure?.books,    local.structure?.books),
-      chapters: reconcileById(s.structure?.chapters, local.structure?.chapters),
+      books:    applyTombstones(reconcileById(s.structure?.books,    local.structure?.books),    tombstones),
+      chapters: applyTombstones(reconcileById(s.structure?.chapters, local.structure?.chapters), tombstones),
     },
     scratchpad: mergedPad,
   };
@@ -852,6 +907,7 @@ async function deleteNote(id) {
     await NotesStore.setChapter(chapter.id, chapter);
   }
   await NotesStore.delete(id);
+  recordTombstone(id); // so the deletion propagates instead of resurrecting from another device
   delete App.openNotes[id];
   delete App.noteSummaries[id];
   delete App.unlockedCiphers[id];
@@ -1849,6 +1905,7 @@ async function deleteChapter(id) {
   }
 
   await NotesStore.deleteChapter(id);
+  recordTombstone(id); // propagate the Scroll deletion across devices
   delete App.chapters[id];
   if (book) {
     book.chapterIds = book.chapterIds.filter(cid => cid !== id);
@@ -1868,6 +1925,7 @@ async function deleteBook(id) {
     await deleteChapter(chapterId); // handles note-orphaning per chapter
   }
   await NotesStore.deleteBook(id);
+  recordTombstone(id); // propagate the Corpus deletion across devices
   delete App.books[id];
   markDirty();
   renderNavTree();
@@ -5026,14 +5084,20 @@ async function boot() {
         NotesStore.getAll(), NotesStore.getAllBooks(), NotesStore.getAllChapters(),
       ]);
 
+      // Tombstones (Layer 2): merge this device's deletions with the server's,
+      // GC by age, then drop any record a tombstone has buried (unless it was
+      // re-edited since). Captured before mergeData() reassigns App.data.
+      const tombstones = gcTombstones(reconcileTombstones(remote.tombstones, App.data.tombstones));
+
       // Same reconcile used by pull-before-push — server is the "server" side,
       // this device's IndexedDB is the "device" side; newest updatedAt wins,
-      // ties to the device.
-      const mergedNotes    = reconcileById(remoteNotes, localNotes);
-      const mergedBooks    = reconcileById(remoteStructure?.books, localBooks);
-      const mergedChapters = reconcileById(remoteStructure?.chapters, localChapters);
+      // ties to the device — then tombstones bury anything deleted elsewhere.
+      const mergedNotes    = applyTombstones(reconcileById(remoteNotes, localNotes), tombstones);
+      const mergedBooks    = applyTombstones(reconcileById(remoteStructure?.books, localBooks), tombstones);
+      const mergedChapters = applyTombstones(reconcileById(remoteStructure?.chapters, localChapters), tombstones);
 
       App.data = mergeData(metadata);
+      App.data.tombstones = tombstones; // authoritative merged + GC'd map (mergeData would otherwise take the remote copy alone)
       await Promise.all([
         NotesStore.replaceAll(mergedNotes),
         NotesStore.replaceAllBooks(mergedBooks),
@@ -5049,6 +5113,9 @@ async function boot() {
       saveLocal();
     }
   }
+
+  // Keep the tombstone map bounded even when we didn't pull (offline/guest).
+  if (App.data.tombstones) App.data.tombstones = gcTombstones(App.data.tombstones);
 
   const ok = await Auth.bootCheck(tokenBeforePull);
   if (!ok) return;
