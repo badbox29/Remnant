@@ -65,6 +65,59 @@ function isValidToken(token) {
   return /^(google:\d{10,30}|[a-zA-Z0-9_-]{8,128})$/.test(token);
 }
 
+// ── KV key identity (token hashing) ────────────────────────────────────────
+//
+// The raw HMAC token IS the credential — it's the HMAC signing secret. Storing
+// it verbatim as the KV key prefix (user:{token}:…) meant a KV dump handed out
+// usable credentials. So the KV IDENTITY for a token account is now the token's
+// SHA-256 hash, not the token itself. A dump exposes hashes, which can't be used
+// to forge signatures. Auth is unaffected: verifyHmac still uses the raw token,
+// which only ever travels in the request, never into KV.
+//
+// Google tokens (google:{sub}) pass through unchanged — a Google sub is not a
+// secret credential (auth there is the verified Google JWT), and passing it
+// through keeps existing Google data exactly where it already lives.
+
+async function sha256hex(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function kvId(token) {
+  return token.startsWith('google:') ? token : await sha256hex(token);
+}
+
+// ensureHashedPrefix(token, env) — one-time migration-on-access. Data written
+// before hashing lives under user:{rawToken}:*. On a token account's first
+// request after deploy, copy that whole prefix to user:{hash}:* and delete the
+// originals (which removes the exposed raw-token keys). Idempotent and cheap
+// afterwards: once the hashed profile exists, the existence check short-circuits.
+// Google tokens never need this.
+async function ensureHashedPrefix(token, env) {
+  if (token.startsWith('google:')) return false;
+  const kv     = env[KV_BINDING];
+  const hashed = await kvId(token);
+  const newPfx = `user:${hashed}:`;
+  // Hashed data already present (or this is a brand-new account) → nothing to do.
+  if (await kv.get(`${newPfx}profile`, { type: 'text' }) !== null) return false;
+  const rawPfx = `user:${token}:`;
+  let cursor, migrated = false;
+  do {
+    const listed = await kv.list({ prefix: rawPfx, cursor });
+    for (const k of listed.keys) {
+      const sub = k.name.slice(rawPfx.length);
+      const val = await kv.get(k.name, { type: 'text' });
+      if (val !== null) {
+        await kv.put(newPfx + sub, val, { expirationTtl: KV_TTL });
+        await kv.delete(k.name);
+        migrated = true;
+      }
+    }
+    cursor = listed.list_complete ? undefined : listed.cursor;
+  } while (cursor);
+  return migrated;
+}
+
 // ── IP rate limiting (auth routes) ─────────────────────────────────────────
 
 async function checkIpRateLimit(env, ip) {
@@ -224,7 +277,11 @@ async function handleAuth(url, method, request, env, cors, ip) {
     const existingGoogle = await kv.get(`user:${kvKey}:profile`, { type: 'text' });
     if (existingGoogle) return respond(JSON.stringify({ error: 'A Remnant account already exists for this Google account. Sign in with Google instead.' }), 409, cors);
 
-    const existingRaw = await kv.get(`user:${oldToken}:profile`, { type: 'text' });
+    // Source data may still be under the raw token (pre-hashing) or already
+    // hashed — normalize to the hashed space, then read from there.
+    await ensureHashedPrefix(oldToken, env);
+    const idOld = await kvId(oldToken);
+    const existingRaw = await kv.get(`user:${idOld}:profile`, { type: 'text' });
     if (!existingRaw) return respond(JSON.stringify({ error: 'Source account not found' }), 404, cors);
 
     let existing;
@@ -239,7 +296,7 @@ async function handleAuth(url, method, request, env, cors, ip) {
 
     // Copy any additional per-key data (none beyond `profile` in Remnant v1,
     // but this loop is preserved so future per-note keys migrate for free).
-    const oldPfx = `user:${oldToken}:`;
+    const oldPfx = `user:${idOld}:`;
     const newPfx = `user:${kvKey}:`;
     let cursor;
     do {
@@ -253,6 +310,17 @@ async function handleAuth(url, method, request, env, cors, ip) {
       }
       cursor = listed.list_complete ? undefined : listed.cursor;
     } while (cursor);
+
+    // Remove the source key space now that it's copied to the Google account.
+    // Previously this was left behind, stranding an exposed user:{oldToken}
+    // profile (the 'ikz' leftover we cleaned up by hand). The migrated:{oldToken}
+    // tombstone above is what still redirects the old device to Google.
+    let delCursor;
+    do {
+      const del = await kv.list({ prefix: oldPfx, cursor: delCursor });
+      for (const k of del.keys) await kv.delete(k.name);
+      delCursor = del.list_complete ? undefined : del.cursor;
+    } while (delCursor);
 
     return respond(JSON.stringify({ ok: true, kvKey, profile: p }), 200, cors);
   }
@@ -274,11 +342,16 @@ async function handleStorage(request, env, pathname, cors) {
   const rlErr = await checkStorageRateLimit(token, env, cors);
   if (rlErr) return rlErr;
 
+  // Convert any pre-hashing data under the raw token to the hashed key space,
+  // once, before any read/write so every branch below operates on the hash.
+  await ensureHashedPrefix(token, env);
+  const id = await kvId(token);
+
   // GET /storage/:token — list keys
   if (parts.length === 2 && request.method === 'GET') {
     const auth = await checkAuth(request, token, cors, true, null, env);
     if (!auth.ok) return auth.res;
-    return await listKeys(token, env, cors);
+    return await listKeys(id, env, cors);
   }
 
   if (parts.length < 3) return respond(JSON.stringify({ error: 'Key required' }), 400, cors);
@@ -287,7 +360,7 @@ async function handleStorage(request, env, pathname, cors) {
   if (!/^[a-zA-Z0-9_\-./]{1,256}$/.test(userKey))
     return respond(JSON.stringify({ error: 'Invalid key format' }), 400, cors);
 
-  const kvKey = `user:${token}:${userKey}`;
+  const kvKey = `user:${id}:${userKey}`;
 
   if (request.method === 'GET') {
     const auth = await checkAuth(request, token, cors, true, null, env);
@@ -314,8 +387,26 @@ async function handleStorage(request, env, pathname, cors) {
     if (!auth.ok) return auth.res;
 
     parsed = await writeLegacyPointer(parsed, token, env);
+
+    // Optimistic concurrency (Layer 3) — profile blob only. The client sends
+    // X-Rev = the rev it based its merge on; if the stored rev moved since
+    // (another device wrote in between), reject with 409 so the client
+    // re-pulls, re-merges, and retries instead of clobbering that write.
+    // A missing X-Rev header means a legacy client that predates this — we
+    // skip the check so old sessions keep working, but still stamp the rev.
+    if (userKey === 'profile') {
+      const currentRaw = await env[KV_BINDING].get(kvKey, { type: 'text' });
+      let currentRev = 0;
+      if (currentRaw) { try { currentRev = JSON.parse(currentRaw)._rev || 0; } catch {} }
+      const clientRev = request.headers.get('X-Rev');
+      if (clientRev !== null && parseInt(clientRev, 10) !== currentRev) {
+        return respond(JSON.stringify({ error: 'Conflict', rev: currentRev }), 409, { ...cors, 'X-Rev': String(currentRev) });
+      }
+      parsed._rev = currentRev + 1; // server-authoritative, monotonic
+    }
+
     await env[KV_BINDING].put(kvKey, JSON.stringify(parsed), { expirationTtl: KV_TTL });
-    return respond(JSON.stringify({ ok: true }), 200, cors);
+    return respond(JSON.stringify({ ok: true, rev: parsed._rev }), 200, cors);
   }
 
   if (request.method === 'DELETE') {
@@ -328,8 +419,8 @@ async function handleStorage(request, env, pathname, cors) {
   return respond(JSON.stringify({ error: 'Method not allowed' }), 405, cors);
 }
 
-async function listKeys(token, env, cors) {
-  const prefix = `user:${token}:`;
+async function listKeys(id, env, cors) {
+  const prefix = `user:${id}:`;
   const list   = await env[KV_BINDING].list({ prefix });
   return respond(JSON.stringify({
     keys: list.keys.map(k => ({ key: k.name.slice(prefix.length), expiration: k.expiration })),
@@ -371,7 +462,7 @@ async function writeLegacyPointer(parsed, newToken, env) {
 // ── Rate limiting (storage) ────────────────────────────────────────────────
 
 async function checkStorageRateLimit(token, env, cors) {
-  const rlKey  = `ratelimit:${token}`;
+  const rlKey  = `ratelimit:${await kvId(token)}`;
   const now    = Math.floor(Date.now() / 1000);
   const win    = now - RATE_LIMIT_WINDOW;
   let ts       = [];
@@ -385,7 +476,7 @@ async function checkStorageRateLimit(token, env, cors) {
 }
 
 async function rateLimitCount(token, env) {
-  const rlKey  = `ratelimit:${token}`;
+  const rlKey  = `ratelimit:${await kvId(token)}`;
   const now    = Math.floor(Date.now() / 1000);
   const win    = now - RATE_LIMIT_WINDOW;
   let ts       = [];
