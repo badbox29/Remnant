@@ -48,7 +48,8 @@ function buildCors(origin) {
   return {
     'Access-Control-Allow-Origin':  origin,
     'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Timestamp, X-Signature',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Timestamp, X-Signature, X-Rev',
+    'Access-Control-Expose-Headers': 'X-Rev, X-Token-Migrated, X-Account-Migrated',
     'Vary': 'Origin',
     'Cache-Control': 'no-store',
   };
